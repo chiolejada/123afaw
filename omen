@@ -1,0 +1,4353 @@
+---@diagnostic disable: undefined-global
+ -- Replace Mouse with get_mouse
+do -- bypass
+    if not LPH_OBFUSCATED then
+        function LPH_NO_VIRTUALIZE(f)
+            return f;
+        end;
+        function LPH_JIT(...)
+            return ...
+        end;
+        function LPH_JIT_MAX(...)
+            return ...
+        end;
+        function LPH_NO_UPVALUES(f)
+            return function(...)
+                return f(...);
+            end;
+        end;
+        function LPH_ENCSTR(...)
+            return ...
+        end;
+        function LPH_ENCNUM(...)
+            return ...
+        end;
+        function LPH_CRASH()
+            return print(debug.traceback());
+        end;
+    end;
+    --
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Module = require(ReplicatedStorage:WaitForChild("EmberSharedLibrary"):WaitForChild("EmberShared"):WaitForChild("Datastructures"):WaitForChild("Encryption"):WaitForChild("AES"))
+
+    if not isfunctionhooked(Module.util.padByteString) then
+        local old;
+        
+        old = hookfunction(Module.util.padByteString, LPH_NO_UPVALUES(function(val, ...)
+            local vals = tostring(val):split("\n")
+            
+            if #vals > 2 then
+                local spoofed = vals[#vals]
+                return old("\n"..spoofed, ...)
+            end
+
+            return old(val, ...)
+        end))
+
+        --warn("Successfully bypassed.")
+    else
+        warn("Already ran omen.vip.")
+    end
+end;  
+
+task.wait(2);
+
+
+local crash_client = function(r)
+    if not r or not type(r) == "string" then
+        return 'Invalid reason given';
+    end;
+    if LPH_OBFUSCATED then
+        return LPH_CRASH();
+    end;
+    return game.GetService(game, "Players")["LocalPlayer"]:Kick(r);
+end;
+
+local env = getgenv();
+local binutil = require(game:GetService("ReplicatedStorage"):WaitForChild("GunLibrary"):WaitForChild("BinaryUtil"));
+local fovcontroller = require(game:GetService("Players").LocalPlayer.PlayerScripts.CameraFovController)
+do
+    local test = 'TabFrame'
+    local detection_callback = LPH_NO_VIRTUALIZE(function(a)
+        if not (a and a.Name == test) then
+            return;
+        end;
+
+        crash_client('Bug found.');
+    end);
+
+
+    detection_callback(game:FindFirstChild(test, true));
+    game.DescendantAdded:Connect(detection_callback);
+end;
+
+do -- before loading
+    if env["OmenVip"] == "Loaded" then
+        return
+    end;
+
+    env["OmenVip"] = "Loading";
+
+    if not game:IsLoaded() then
+        repeat
+            game.Loaded:Wait();
+        until game:IsLoaded();
+    end;
+    --
+    local game_name = game.GetService(game, "MarketplaceService"):GetProductInfo(game.PlaceId).Name:gsub("[^a-zA-Z0-9%s]", ""):lower();
+    local executor = identifyexecutor and identifyexecutor() or "Unknown"
+    if not game_name:find("aftermath", 1, true) then
+        game.GetService(game, "Players")["LocalPlayer"]:Kick("Execute in Aftermath only!");
+        return;
+    end;
+    if executor == "Wave" or executor == "AWP" or executor == "Potassium" or executor == "Swift" or executor == "Zenith" then
+        -- do nothing
+    else
+        game.GetService(game, "Players")["LocalPlayer"]:Kick("Unsupported Executor " .. executor)
+        return;
+    end;
+end;
+--
+
+
+local Flags = Library.Flags;
+
+--
+local _GetService = function(x)
+    return cloneref(game:GetService(x))
+end
+
+-- services
+local workspace     = _GetService("Workspace");
+local run_service   = _GetService("RunService");
+local rs            = _GetService("ReplicatedStorage");
+local players       = _GetService("Players");
+local uis           = _GetService("UserInputService");
+local lighting      = _GetService("Lighting");
+local http_service  = _GetService("HttpService");
+local collection    = _GetService("CollectionService");
+local text_service  = _GetService("TextService");
+local gethui        =  gethui();
+
+-- variables
+local mouse_location = LPH_NO_VIRTUALIZE(function()
+    return uis:GetMouseLocation();
+end)
+local renderstepped = run_service.RenderStepped
+local client        = players["LocalPlayer"];
+local get_mouse     = client:GetMouse();
+
+local Camera        = workspace["CurrentCamera"];
+local viewport_size = Camera["ViewportSize"];
+
+local pscripts= game.FindFirstChildOfClass(client,"PlayerScripts");
+
+
+local humanoid;
+
+local weaponbobcache, oldweaponbobcache = {}, {};
+local headsoundcache, hitsoundcache = {}, {};
+local skyboxcache, cachedparts = {}, {};
+local cachedslots, defaultvalues, guncontrollercache = {}, {}, {};
+local esp = { cache = {}};
+
+local func_vars = {
+    c3 = Color3.fromRGB, cNew3 = Color3.new, cLerp3 = Color3.new(0, 0, 0).Lerp, cRGB3 = Color3.fromRGB, cSequenceNew = ColorSequence.new, nVec3 = Vector3.new, nVec2 = Vector2.new, iNew = Instance.new, uNew2 = UDim2.new, uFromOffset2 = UDim2.fromOffset, getChildren = game.GetChildren, findFirstChild = game.FindFirstChild, getDescendants = game.GetDescendants, isA = game.IsA, isDescendantOf = game.IsDescendantOf, raycast = workspace.Raycast, findfirstchildofclass = game.FindFirstChildOfClass, worldToViewportPoint = Camera.WorldToViewportPoint, clamp = math.clamp, abs = math.abs, max = math.max, floor = math.floor, sqrt = math.sqrt, deg = math.deg, atan2 = math.atan2, huge = math.huge, rad = math.rad, ceil = math.ceil, sin = math.sin, cos = math.cos, clear = table.clear, insert = table.insert, find = table.find, concat = table.concat, remove = table.remove, gsub = string.gsub, format = string.format, studMeter = 0.28, studFeet = 0.92, studInch = 0.92 * 12, studMile = 0.92 / 5280, keycode = Enum.KeyCode, is_key_down = game.GetService(game, "UserInputService").IsKeyDown,
+};
+
+-- game
+local camera_controller_service;
+local npc_simulator_service;
+
+local guncontroller; 
+local charactercontroller; 
+local custom_character;
+
+do -- framework
+    if not camera_controller_service then
+        for _, v in getgc(true) do
+            if type(v) ~= "table" then continue end;
+            --
+            if rawget(v, "SetPitch") and rawget(v, "SetYaw") and rawget(v, "GetCameraCFrame") then
+                camera_controller_service = v;
+            end;
+            --
+            if rawget(v, "NPCs") and rawget(v, "NPCTypes") then
+                npc_simulator_service = v;
+            end;
+            --
+            --if rawget(v, "new") and rawget(v, "WriteBit") and rawget(v, "WriteBits") and rawget(v, "WriteByte") and rawget(v, "WriteBytes") and rawget(v, "WriteBool") and rawget(v, "WriteShort") and rawget(v, "WriteInt") and rawget(v, "WriteDouble") and rawget(v, "WriteString") and rawget(v, "WriteVector2") and rawget(v, "WriteVector3") and rawget(v, "ReadBit") and rawget(v, "ReadByte") and rawget(v, "ReadBool") and rawget(v, "ReadInt") and rawget(v, "ReadShort") and rawget(v, "ReadString") and rawget(v, "ReadDouble") and rawget(v, "ReadVector2") and rawget(v, "ReadVector3") and rawget(v, "Remaining") and rawget(v, "HasNext") and rawget(v, "Serialize") and rawget(v, "Flip") and rawget(v, "Fill") and rawget(v, "Deserialize") then
+            --    binutil = v    
+            --end
+            
+        end
+        if not npc_simulator_service or not camera_controller_service then
+            return 
+        end;
+
+    end;
+
+    guncontroller = func_vars.findFirstChild(pscripts, "GunController");
+
+    charactercontroller = func_vars.findFirstChild(pscripts, "CharacterController");
+
+    custom_character = func_vars.findFirstChild(rs, "CustomCharacter");
+
+    if not guncontroller or not charactercontroller or not custom_character then
+        return 'Controllers error.'
+    end;
+
+end;
+
+local ember_require = getrenv()['_G'].require
+if not ember_require then
+	return 'Framework error.'
+end;
+local gun_env = getsenv(guncontroller);
+if not gun_env then
+    return 'Environment error.'
+end;
+repeat task.wait() until gun_env.getHitInternal
+-- lighting cache
+local lighting_cache = {
+    Sky = lighting:FindFirstChildOfClass("Sky"),
+    Brightness = game:GetService("Lighting").Brightness,
+    ClockTime = game:GetService("Lighting").ClockTime,
+    Ambient = game:GetService("Lighting").Ambient,
+    OutdoorAmbient = game:GetService("Lighting").OutdoorAmbient,
+    FogEnd = game:GetService("Lighting").FogEnd,
+    FieldOfView = game:GetService("Workspace").CurrentCamera.FieldOfView,
+    Density = game:GetService("Lighting"):FindFirstChild("Atmosphere").Density,
+    Offset = game:GetService("Lighting"):FindFirstChild("Atmosphere").Offset,
+    Glare = game:GetService("Lighting"):FindFirstChild("Atmosphere").Glare,
+    Haze = game:GetService("Lighting"):FindFirstChild("Atmosphere").Haze,
+    Clouds = workspace.Terrain:FindFirstChild("Clouds"),
+}
+local atmosphere = lighting:FindFirstChild("Atmosphere")
+-- skyboxes
+local skyboxes = {
+    ["Standard"] = { "91458024", "91457980", "91458024", "91458024", "91458024", "91458002"},
+    ["Blue Sky"] = { "591058823", "591059876", "591058104", "591057861", "591057625", "591059642" },
+    ["Vaporwave"] = { "1417494030", "1417494146", "1417494253", "1417494402", "1417494499", "1417494643" },
+    ["Redshift"] = { "401664839", "401664862", "401664960", "401664881", "401664901", "401664936" },
+    ["Blaze"] = { "150939022", "150939038", "150939047", "150939056", "150939063", "150939082" },
+    ["Among Us"] = { "5752463190", "5752463190", "5752463190", "5752463190", "5752463190", "5752463190" },
+    ["Dark Night"] = { "6285719338", "6285721078", "6285722964", "6285724682", "6285726335", "6285730635" },
+    ["Bright Pink"] = { "271042516", "271077243", "271042556", "271042310", "271042467", "271077958" },
+    ["Purple Sky"] = { "570557514", "570557775", "570557559", "570557620", "570557672", "570557727" },
+    ["Galaxy"] = { "15125283003", "15125281008", "15125277539", "15125279325", "15125274388", "15125275800" },
+}
+local sky = lighting:FindFirstChildOfClass("Sky") or cloneref(Instance.new("Sky", lighting))
+
+local hitsounds = {
+    ["Default"] = "rbxassetid://5097463838",
+    ["Gamesense"] = "rbxassetid://4817809188",
+    ["CS:GO"] = "rbxassetid://6937353691",
+    ["Neverlose"] = "rbxassetid://8726881116",
+    ["TF2 Critical"] = "rbxassetid://296102734",
+    ["Rust"] = "rbxassetid://1255040462",
+    ["Call of Duty"] = "rbxassetid://5952120301",
+    ["Minecraft"] = "rbxassetid://4018616850",
+    ["Dink"]      = "rbxassetid://988593556";
+    ["TF2"]       = "rbxassetid://8255306220";
+    ["Bubble"]    = "rbxassetid://198598793";
+    ["Quake"]     = "rbxassetid://1455817260";
+    ["Among-Us"]  = "rbxassetid://7227567562";
+    ["Ding"]      = "rbxassetid://2868331684";
+    ["Minecraft_2"] = "rbxassetid://6361963422";
+    ["Blackout"]  = "rbxassetid://3748776946";
+    ["Osu"]       = "rbxassetid://7151989073"
+};
+
+local headsounds = {
+    ["Default"] = "rbxassetid://5097463838",
+    ["Gamesense"] = "rbxassetid://4817809188",
+    ["CS:GO"] = "rbxassetid://6937353691",
+    ["Neverlose"] = "rbxassetid://8726881116",
+    ["TF2 Critical"] = "rbxassetid://296102734",
+    ["Rust"] = "rbxassetid://1255040462",
+    ["Call of Duty"] = "rbxassetid://5952120301",
+    ["Minecraft"] = "rbxassetid://4018616850",
+    ["Dink"]      = "rbxassetid://988593556";
+    ["TF2"]       = "rbxassetid://8255306220";
+    ["Bubble"]    = "rbxassetid://198598793";
+    ["Quake"]     = "rbxassetid://1455817260";
+    ["Among-Us"]  = "rbxassetid://7227567562";
+    ["Ding"]      = "rbxassetid://2868331684";
+    ["Minecraft_2"] = "rbxassetid://6361963422";
+    ["Blackout"]  = "rbxassetid://3748776946";
+    ["Osu"]       = "rbxassetid://7151989073"
+};
+
+local hit_parts = { 
+    "Head", 
+    "UpperTorso", "LowerTorso", 
+    "LeftUpperArm", "LeftLowerArm", 
+    "LeftHand", "RightUpperArm", 
+    "RightLowerArm", "RightHand", 
+    "LeftUpperLeg", "LeftLowerLeg", 
+    "LeftFoot", "RightUpperLeg", 
+    "RightLowerLeg", "RightFoot" 
+};
+
+for _, obj in getgc(true) do
+    if type(obj) == 'table' then
+
+        if rawget(obj, 'BobSpeed') then
+            weaponbobcache = obj
+        end
+
+        if rawget(obj, 'CameraFOV') then
+            guncontrollercache = obj
+        end
+
+        if rawget(obj, '_damper') == 0.75 then
+            local metatable = getrawmetatable(obj)
+
+            local old_impulse = rawget(metatable, "Impulse")
+            metatable.Impulse = function(self, velocity)
+                if self._damper == 0.75 and Flags["No Recoil"] then
+                    velocity *= Flags["Recoil"]
+                end
+                return old_impulse(self, velocity)
+            end
+
+            local old_setposition = rawget(metatable, "SetPosition")
+            metatable.SetPosition = function(self, pos)
+                if self._damper == 0.75 and Flags["No Recoil"] then
+                    pos *= Flags["Recoil"]
+                end
+                return old_setposition(self, pos)
+            end
+        end
+        
+    end
+
+    if type(obj) == "function" then
+        local info = debug.getinfo(obj)
+
+        if info and info.name and info.name:find("resizeCrosshair") then
+            local old_resize
+            local function oldwhat(...)
+                local args = { ... }
+
+                if Flags["No Spread"] then
+                    args[1] = 0
+                end
+
+                return old_resize(unpack(args))
+
+            end
+            old_resize = hookfunction(obj, LPH_NO_VIRTUALIZE(function(...)
+                return oldwhat(...)
+            end))
+        end
+    end
+end
+
+for i, v in weaponbobcache do 
+    rawset(oldweaponbobcache, i, v) 
+end;
+for i, _ in pairs(headsounds) do
+    table.insert(headsoundcache, i);
+end;
+for i, _ in pairs(hitsounds) do 
+    table.insert(hitsoundcache, i);
+end;
+for v in pairs(skyboxes) do
+    table.insert(skyboxcache, v)
+end
+
+local fonts = {
+    ['Proggyfont']    = Font.new(getcustomasset(font_path)),
+    ['Silkscreen']    = Font.fromId(12187371840),
+	['Arcade']        = Font.fromEnum(Enum.Font.Arcade),
+	['Monospace']     = Font.fromEnum(Enum.Font.RobotoMono),
+	['Arial']         = Font.fromEnum(Enum.Font.Arial),
+	['goofy font 💀'] = Font.fromEnum(Enum.Font.Creepster)
+}
+
+-- esp library
+--local player_esp = {
+--    player_cache = {},
+--    drawing_cache = {},
+--
+--    childadded_connections = {},
+--    childremoved_connections = {},
+--    functions = {},
+--};
+
+-- omen
+local privhook = {
+    functions = {};
+    drawings = {
+        circle = Drawing.new("Circle");
+        c_outline = Drawing.new("Circle");
+    };
+    connections = {},
+    math = {
+        sv_speed = custom_character.Configuration.Server.sv_default_bullet_speed.Value,
+        sv_gravity = custom_character.Configuration.Server.sv_default_bullet_gravity.Value,
+        delta = 0,
+    };
+};
+
+local custom_mesh_character = (function()
+    for _, func in next, { getloadedmodules, getnilinstances } do
+        if type(func) ~= 'function' then continue end;
+        for _, instance in next, select(2, pcall(func)) do
+            if instance.Name == 'CustomMeshCharacter' then
+                return require(instance);
+            end;
+        end;
+    end;
+end)();
+
+-- functions
+local get_safe_character = function(player)
+    if not player or not player.Character then 
+        return;
+    end;
+    local fake_char = custom_mesh_character:GetWorldCharacterFromCharacter(player.Character);
+    if not fake_char then
+        return nil;
+    end;
+    return fake_char;
+end;
+--
+local lerp_zoom = function(a, b, alpha)
+    return a + (b - a) * (alpha) * (20);
+end;
+--
+local cache_part = function()
+    local attempt = 0
+    repeat task.wait(0.5)
+        cachedparts = {};
+        for _, v in pairs(Camera:GetDescendants()) do
+            if v:IsA("BasePart") and v.RootPriority 
+            and v.RootPriority > 10 and v.AssemblyLinearVelocity 
+            and v.AssemblyLinearVelocity.Magnitude > 0 
+            then
+                func_vars.insert(cachedparts, v);
+            end;
+        end;
+        attempt = attempt + 1
+    until #cachedparts > 0 or attempt >= 3
+    if #cachedparts == 0 then
+        return 'Unable to cache part.'
+    end;
+end;
+
+cache_part();
+--
+local local_humanoid = function()
+    local humanoid = nil;
+    local char1 = workspace:FindFirstChild(client.Name);
+    if client and char1 then 
+        humanoid = char1:FindFirstChild("Humanoid") ;
+    end;
+    return humanoid;
+end;
+--
+--local calculate_size = function(r, t)
+--    return func_vars.abs((r * 2) - (t * 2));
+--end;
+--
+local get_character = function(plr)
+    return workspace:FindFirstChild(plr.Name);
+end;
+--
+--local get_magnitude = function(a, b)
+--    if a and b then
+--	    return (a:GetPivot().Position - b:GetPivot().Position).Magnitude
+--    end;
+--    return func_vars.huge;
+--end;
+--
+--local studs_to_meters = function(s)
+--    return (s * 0.28);
+--end;
+--
+local pos_to_vec = function(pos)
+    return Camera:WorldToViewportPoint(pos);
+end;
+--
+local armcolor, weaponcolor, body_color
+--
+local update_weapon = function(child)
+    if child.Name ~= "CurrentWeapon" then return end;
+    if Flags["Arm chams"] then
+    	local arm_material = Enum.Material[Flags["armmaterial"]];
+    	if arm_material then
+    		for _, side in { "Left Arm", "Right Arm" } do
+    			local arm = child:FindFirstChild(side);
+    			if arm then
+    				local model = arm:WaitForChild(side);
+    				if model then
+    					local skin = model:FindFirstChild("Skin");
+    					if skin then
+    						local surf = skin:FindFirstChildOfClass("SurfaceAppearance");
+    						if surf then surf:Destroy(); surf = nil end;
+    						skin.Material = arm_material;
+    						skin.Color = armcolor;
+    					end;
+    				end;
+    			end;
+    		end;
+    	end;
+    end;
+
+    if Flags["Weapon Chams"] then
+    	local weapon_material = Enum.Material[Flags["weaponmaterial"]];
+    	local weapon = child:FindFirstChild("Weapon");
+    	if weapon and weapon_material then
+    		for _, part in ipairs(weapon:GetDescendants()) do
+    			local surf = part:FindFirstChildOfClass("SurfaceAppearance");
+    			if surf then surf:Destroy(); surf = nil end;
+    			if part:IsA("BasePart") then
+    				part.Material = weapon_material;
+    				part.Color = weaponcolor;
+    			end;
+    		end;
+    	end;
+    end;
+end;
+--
+local update_character = function()
+    local character = get_character(client);
+    if not character then return end;
+    local world_character = get_safe_character(client);
+    if not world_character then return end;
+    local body_material = Enum.Material[Flags["bodymaterial"]];
+
+    if Flags["Body Chams"] then
+    	for _, part in ipairs(world_character:GetChildren()) do
+    		local surf = part:FindFirstChildOfClass("SurfaceAppearance");
+    		if surf then surf:Destroy(); surf = nil end;
+    		if part:IsA("BasePart") then
+    			part.Material = body_material;
+    			part.Color = body_color;
+    		end;
+    	end;
+    end;
+end;
+--
+local set_transparency = function(tree, transparency)
+    if tree then
+	    if tree:IsA("Model") then
+	    	local leaves = tree:FindFirstChild("Leaves");
+	    	if leaves then
+	    		leaves.Transparency = transparency;
+	    	end
+	    end
+	    if tree:IsA('BasePart') and tree.CanCollide == false then
+	    	tree.Transparency = transparency;
+	    end;
+    end;
+end;
+--
+local create_instance = function(class, props)
+    local instance = Instance.new(class);
+    for key, value in pairs(props) do
+        instance[key] = value;
+    end;
+    return instance;
+end;
+--
+local ui = {
+    window = nil,
+    tabs = {},
+    group_box = {},
+};
+
+local circle = privhook.drawings.circle; circle.Radius = 0; circle.Color = func_vars.c3(255, 255, 255); circle.NumSides = 124; circle.Filled = false; circle.Thickness = 1;
+local circle_outline = privhook.drawings.c_outline; circle_outline.Radius = 0; circle_outline.Color = func_vars.c3(0, 0, 0); circle_outline.NumSides = 124; circle_outline.Filled = false; circle_outline.Thickness = 2;
+circle.ZIndex = 2; circle_outline.ZIndex = 1;
+local trees = workspace:FindFirstChild('world_assets'):FindFirstChild('StaticObjects'):FindFirstChild('Trees');
+local foliages = workspace:FindFirstChild('world_assets'):FindFirstChild('StaticObjects'):FindFirstChild('Foliage');
+local ui_window = ui.window;
+local ui_tabs = ui.tabs;
+local ui_groupbox = ui.group_box
+ui_window = Library:CreateWindow({ Title = "omen.vip", Gametitle = "aftermath", TabStyle = "Left" });
+ui_window:RenderPreview()
+ui_window:AddSettings("Omen\\Aftermath");
+ui_window:Watermark("omen", "PRIVATE");
+ui_window:Notification({ Text = "decrypting files", NotifcationColor = func_vars.cRGB3(0, 0, 255) });
+local time_took = end_time - start_time
+local time_seconds = function(time_took)
+    return string.format("%.2f", time_took)
+end
+
+task.wait(time_took)
+ui_window:Notification({ Text = "done, took: " .. time_seconds(time_took) .. "s", NotifcationColor = func_vars.cRGB3(0, 255, 0) });
+ui_window:Notification({ Text = "loading scripts", NotifcationColor = func_vars.cRGB3(0, 0, 255) });
+
+local new_start_time = tick()
+--
+local tserv = {
+    target_part = "Head",
+    headsound = "Rust",
+    aimbot_bind = false,
+    ads_bind =  false,
+    fly_bind =  false,
+    bodysound = "Gamesense",
+    angle = "Default",
+    tracer_color = Color3.new(1, 1, 1),
+    linecolor =  Color3.new(1, 1, 1),
+    ambient = Color3.new(1, 1 , 1),
+    outambient =  Color3.new(1, 1, 1),
+    visuals = {
+		general = {
+			teamcheck 			= false;
+			boxSize 			= func_vars.nVec3(4, 6, 0); -- // default model size
+			maxBoxSize 			= func_vars.nVec3(4.5, 6.5, 0) * 0.5; -- // just in case
+			font 				= "Monospace"; 
+			fontSize 			= 15;
+			renderRange 		= 0;
+			selfCheck 			= true;
+			points = {		
+				torso 			= {"UpperTorso", "LowerTorso"};
+				larm 			= {"LeftUpperArm", "LeftLowerArm", "LeftHand"};
+				rarm 			= {"RightUpperArm", "RightLowerArm", "RightHand"};
+				lleg 			= {"LeftUpperLeg", "LeftLowerLeg", "LeftFoot"};
+				rleg 			= {"RightUpperLeg", "RightLowerLeg", "RightFoot"};
+				head 			= "Head";
+			};
+		};
+		box = {
+			enabled 			= false;
+			fill 				= false;
+			fillColor 			= func_vars.cRGB3(0, 0, 0);
+			fillTransparency	= 0;
+			outline 			= false;
+			outlineColor 		= func_vars.cRGB3();
+			color 				= func_vars.cNew3(0, 0, 0);
+			transparency 		= 0;
+			type 				= "box"; -- // box/corner
+			renderRange 		= 0;
+
+			--// New
+			gradient            = false;
+			gradientColor       = func_vars.cNew3(1, 1, 1);
+			gradientSpinAmount  = 0; -- // use formula (delta * spinsPerSecond) in functions like RunService.Heartbeat/RunService.RenderStepped
+		};
+		name = {
+			enabled 			= false;
+			color 				= func_vars.cNew3(0, 0, 0);
+			outline 			= false;
+			outlineColor 		= func_vars.cNew3(0, 0, 0);
+			transparency 		= 0;
+		};
+		distance = {
+			enabled 			= false;
+			color 				= func_vars.cNew3(0, 0, 0);
+			outline 			= false;
+			outlineColor 		= func_vars.cNew3(0, 0, 0);
+			transparency 		= 0;
+			type 				= "st"; -- // stud: st; meter: m; foot: ft; inch: i; mile: mi;
+			decimals 			= 0;
+		};
+		weapon = {
+			enabled 			= false;
+			color 				= func_vars.cNew3(0, 0, 0);
+			outline 			= false;
+			outlineColor 		= func_vars.cNew3(0, 0, 0);
+			transparency 		= 0;
+		};
+		skeleton = {
+			enabled 			= false;
+			color 				= func_vars.cNew3(0, 0, 0);
+			transparency		= 0;
+			renderRange 		= 0;
+			thickness 			= 1;
+
+			--// New
+			gradient            = false;
+			gradientColor       = func_vars.cNew3(1, 1, 1);
+			gradientType        = "singular"; -- singular/multiple
+			gradientSpinAmount 	= 0;
+		};
+		target = {
+			enabled 			= false;
+			name 				= func_vars.cRGB3(0, 0, 0);
+			box 				= func_vars.cRGB3(0, 0, 0);
+			distance 			= func_vars.cRGB3(0, 0, 0);
+		};
+        visible = {
+			enabled 			= false;
+			name 				= func_vars.cNew3(0, 0, 0);
+			box 				= func_vars.cNew3(0, 0, 0);
+			distance 			= func_vars.cNew3(0, 0, 0);
+		};
+    },
+    game_visuals = {
+        configuration = {
+            font_size = 11,
+            font = "Monospace",
+            text_outline = false,
+            text_outline_transparency = 0
+        },
+        lootbags = {
+            esp = false,
+            esp_color = func_vars.c3(255, 255, 255),
+            draw_distance = false,
+        },
+        cars = {
+            esp = false,
+            esp_color = func_vars.c3(255, 255, 255),
+            draw_distance = false,
+        },
+        weapons = {
+            esp = false,
+            esp_color = func_vars.c3(76.5, 76.5, 153),
+            draw_distance = false,
+        },
+        ammos = {
+            esp = false,
+            esp_color = func_vars.c3(255, 127.5, 51),
+            draw_distance = false,
+        },
+        items = {
+            esp = false,
+            esp_color = func_vars.c3(255, 255, 255),
+            draw_distance = false,
+        },
+        medicals = {
+            esp = false,
+            esp_color = func_vars.c3(255, 128, 128),
+            draw_distance = false,
+        },
+        chinese_zombie = {
+            esp = false,
+            esp_color = func_vars.c3(255, 255, 255),
+            draw_distance = false,
+        },
+        chinese_soldier = {
+            esp = false,
+            esp_color = func_vars.c3(255, 255, 255),
+            draw_distance = false,
+            distance_color = func_vars.c3(255, 255, 255),
+        },
+        tactical_zombie = {
+        	esp = false,
+        	esp_color = func_vars.c3(255, 255, 255),
+        	draw_distance = false
+        },
+        containers = {
+        	esp = false,
+        	esp_color = func_vars.c3(255, 255, 255),
+        	draw_distance = false,
+        },
+    };
+};
+--
+local va = tserv["visuals"]
+local gen_array, box_array, name_array, distance_array, weapon_array, skeleton_array, target_array, visible_array = va["general"], va["box"], va["name"], va["distance"], va["weapon"], va["skeleton"], va["target"], va["visible"]
+
+--
+do -- menu
+    do -- visuals
+        ui_tabs["visuals"] = ui_window:AddTab({Title = " Visuals "});
+        do -- configuration
+            local config_groupbox = ui_groupbox["visuals"]
+            config_groupbox = ui_tabs["visuals"]:AddGroupBox({Title = "Configuration", Side = "Left"});
+            config_groupbox:AddToggle({
+                Title = "Player Infoboard",
+                Flag = "player_infoboard",
+                Default = false,
+            });
+            config_groupbox:AddToggle({
+                Title = "Teamcheck",
+                Flag = "visuals_teamcheck",
+                Default = false,
+                Callback = function(e) gen_array.teamcheck = e end
+            });
+            config_groupbox:AddDropdown({
+                Title = "Font",
+                Flag = "visuals_font",
+                Options = {"Silkscreen", "Arcade", "Monospace", "Arial", "goofy font 💀"},
+                Default = "Monospace",
+                Callback = function(e) gen_array.font = e end
+            });
+            config_groupbox:AddSlider({
+                Title = "  Font Size",
+                Flag = "visuals_font_size",
+                Min = 0,
+                Max = 20,
+                Default = 13,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) gen_array.fontSize = e end
+            });
+            config_groupbox:AddSlider({
+                Title = "  Render Range",
+                Flag = "visuals_render_range",
+                Min = 0,
+                Max = 10000,
+                Default = 2000,
+                Suffix = "x",
+                Increment = 1,
+                Callback = function(e) gen_array.renderRange = e end
+            });
+
+            config_groupbox:AddToggle({
+                Title = "Target",
+                Flag = "visuals_target",
+                Default = false,
+                Callback = function(e) target_array.enabled = e end
+            });
+            config_groupbox:AddColorPicker({
+                Title = "Name Color",
+                Flag = "visuals_target_name_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) target_array.name = e end
+            });
+            config_groupbox:AddColorPicker({
+                Title = "Box Color",
+                Flag = "visuals_target_box_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) target_array.box = e end
+            });
+            config_groupbox:AddColorPicker({
+                Title = "Distance Color",
+                Flag = "visuals_target_distance_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) target_array.distance = e end
+            });
+            config_groupbox:AddToggle({
+                Title = "Visible",
+                Flag = "visuals_visible",
+                Default = false,
+                Callback = function(e) visible_array.enabled = e end
+            });
+            config_groupbox:AddColorPicker({
+                Title = "Name Color",
+                Flag = "visuals_visible_name_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) visible_array.name = e end
+            });
+            config_groupbox:AddColorPicker({
+                Title = "Box Color",
+                Flag = "visuals_visible_box_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) visible_array.box = e end
+            });
+            config_groupbox:AddColorPicker({
+                Title = "Distance Color",
+                Flag = "visuals_visible_distance_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) visible_array.distance = e end
+            });
+
+        end;
+        -- boxes
+        do
+            local box_groupbox = ui_groupbox["box"]
+            box_groupbox = ui_tabs["visuals"]:AddGroupBox({Title = "Boxes", Side = "Middle"});
+            box_groupbox:AddToggle({
+                Title = "Box Enabled",
+                Flag = "visuals_boxes_enabled",
+                Default = false,
+                Callback = function(e) box_array.enabled = e end
+            });
+            box_groupbox:AddDropdown({
+                Title = "Box Type",
+                Flag = "visuals_boxes_type",
+                Options = {"box","corner"},
+                Default = "corner",
+                Callback = function(e) box_array.type = e end
+            });
+            box_groupbox:AddSlider({
+                Title = "  Transparency",
+                Flag = "visuals_boxes_transparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) box_array.transparency = e end
+            });
+            box_groupbox:AddColorPicker({
+                Title = "Box Color",
+                Flag = "visuals_boxes_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) box_array.color = e end
+            });
+            box_groupbox:AddToggle({
+                Title = "Box Fill",
+                Flag = "visuals_boxes_filled",
+                Default = false,
+                Callback = function(e) box_array.fill = e end
+            });
+            box_groupbox:AddSlider({
+                Title = "  Fill Transparency",
+                Flag = "visuals_boxes_fill_transparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) box_array.fillTransparency = e end
+            });
+            box_groupbox:AddColorPicker({
+                Title = "Fill Color",
+                Flag = "visuals_boxes_fill_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) box_array.fillColor = e end
+            });
+            box_groupbox:AddToggle({
+                Title = "Boxes Outline",
+                Flag = "visuals_boxes_outline",
+                Default = false,
+                Callback = function(e) box_array.outline = e end
+            });
+            box_groupbox:AddColorPicker({
+                Title = "Outline Color",
+                Flag = "visuals_boxes_outlines_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) box_array.outlineColor = e end
+            });
+            box_groupbox:AddSlider({
+                Title = "  Render Range",
+                Flag = "visuals_boxes_render_range",
+                Min = 0,
+                Max = 10000,
+                Default = 0,
+                Suffix = "x",
+                Increment = 1,
+                Callback = function(e) box_array.renderRange = e end
+            });
+            box_groupbox:AddToggle({
+                Title = "Animated Boxes",
+                Flag = "visuals_boxes_animated",
+                Default = false,
+                Callback = function(e) box_array.gradient = e end
+            });
+            box_groupbox:AddColorPicker({
+                Title = "Gradient Color",
+                Flag = "visuals_boxes_gradient_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) box_array.gradientColor = e end
+            });
+        end;
+        -- names
+        do
+            local name_groupbox = ui_groupbox["name"]
+            name_groupbox = ui_tabs["visuals"]:AddGroupBox({Title = "Names", Side = "Right"});
+            name_groupbox:AddToggle({
+                Title = "Name Enabled",
+                Flag = "visuals_names_enabled",
+                Default = false,
+                Callback = function(e) name_array.enabled = e end
+            });
+            name_groupbox:AddSlider({
+                Title = "  Transparency",
+                Flag = "visuals_names_transparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) name_array.transparency = e end
+            });
+            name_groupbox:AddColorPicker({
+                Title = "Name Color",
+                Flag = "visuals_names_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) name_array.color = e end
+            });
+            name_groupbox:AddToggle({
+                Title = "Name Outline",
+                Flag = "visuals_names_outline",
+                Default = false,
+                Callback = function(e) name_array.outline = e end
+            });
+            name_groupbox:AddColorPicker({
+                Title = "Outline Color",
+                Flag = "visuals_names_outlines_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) name_array.outlineColor = e end
+            });
+        end;
+        -- distance
+        do
+            local distance_groupbox = ui_groupbox["distance"]
+            distance_groupbox = ui_tabs["visuals"]:AddGroupBox({Title = "Distance", Side = "Left"});
+            distance_groupbox:AddToggle({
+	        Title = "Distance Enabled",
+                Flag = "visuals_distance_enabled",
+                Default = false,
+                Callback = function(e) distance_array.enabled = e end
+            });
+            distance_groupbox:AddDropdown({
+                Title = "Distance Type",
+                Flag = "visuals_distance_type",
+                Options = {"st","m","ft","i","mi"},
+                Default = "m",
+                Callback = function(e) distance_array.type = e end
+            });
+            distance_groupbox:AddSlider({
+                Title = "  Decimals",
+                Flag = "visuals_distance_decimals",
+                Min = 0,
+                Max = 3,
+                Default = 0,
+                Suffix = "x",
+                Increment = 1,
+                Callback = function(e) distance_array.decimals = e end
+            });
+            distance_groupbox:AddSlider({
+                Title = "  Transparency",
+                Flag = "visuals_distance_transparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) distance_array.transparency = e end
+            });
+            distance_groupbox:AddColorPicker({
+                Title = "Distance Color",
+                Flag = "visuals_distance_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) distance_array.color = e end
+            });
+            distance_groupbox:AddToggle({
+                Title = "Distance Outline",
+                Flag = "visuals_distance_outline",
+                Default = false,
+                Callback = function(e) distance_array.outline = e end
+            });
+            distance_groupbox:AddColorPicker({
+                Title = "Outline Color",
+                Flag = "visuals_distance_outlines_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) distance_array.outlineColor = e end
+            });
+        end;
+        -- weapon
+        do
+            local weapon_groupbox = ui_groupbox["weapon"]
+            weapon_groupbox = ui_tabs["visuals"]:AddGroupBox({Title = "Weapon", Side = "Middle"});
+            weapon_groupbox:AddToggle({
+                Title = "Weapon Enabled",
+                Flag = "visuals_weapon_enabled",
+                Default = false,
+                Callback = function(e) weapon_array.enabled = e end
+            });
+            weapon_groupbox:AddSlider({
+                Title = "  Transparency",
+                Flag = "visuals_weapon_transparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) weapon_array.transparency = e end
+            });
+            weapon_groupbox:AddColorPicker({
+                Title = "Weapon Color",
+                Flag = "visuals_weapon_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) weapon_array.color = e end
+            });
+            weapon_groupbox:AddToggle({
+                Title = "Weapon Outline",
+                Flag = "visuals_weapon_outline",
+                Default = false,
+                Callback = function(e) weapon_array.outline = e end
+            });
+            weapon_groupbox:AddColorPicker({
+                Title = "Outline Color",
+                Flag = "visuals_weapon_outlines_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) weapon_array.outlineColor = e end
+            });
+        end;
+        -- skeletons
+        do
+            local skeleton_groupbox = ui_groupbox["skeletons"]
+            skeleton_groupbox = ui_tabs["visuals"]:AddGroupBox({Title = "Skeletons", Side = "Right"});
+            skeleton_groupbox:AddToggle({
+                Title = "Skeleton Enabled",
+                Flag = "visuals_skeletons_enabled",
+                Default = false,
+                Callback = function(e) skeleton_array.enabled = e end
+            });
+            skeleton_groupbox:AddSlider({
+                Title = "  Transparency",
+                Flag = "visuals_skeletons_transparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Suffix = "x",
+                Increment = 0.1,
+                Callback = function(e) skeleton_array.transparency = e end
+            });
+            skeleton_groupbox:AddColorPicker({
+                Title = "Skeleton Color",
+                Flag = "visuals_skeletons_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) skeleton_array.color = e end
+            });
+            skeleton_groupbox:AddSlider({
+                Title = "  Render Range",
+                Flag = "visuals_skeleton_render_range",
+                Min = 0,
+                Max = 10000,
+                Default = 0,
+                Suffix = "x",
+                Increment = 1,
+                Callback = function(e) skeleton_array.renderRange = e end
+            });
+            skeleton_groupbox:AddToggle({
+                Title = "Animated Skeletons",
+                Flag = "visuals_skeletons_animated",
+                Default = false,
+                Callback = function(e) skeleton_array.gradient = e end
+            });
+            skeleton_groupbox:AddColorPicker({
+                Title = "Gradient Color",
+                Flag = "visuals_skeletons_gradient_color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) skeleton_array.gradientColor = e end
+            });
+            skeleton_groupbox:AddDropdown({
+                Title = "Gradient Mode",
+                Flag = "visuals_skeleton_gradient_mode",
+                Options = {"singular", "multiple"},
+                Default = "singular",
+                Callback = function(e) skeleton_array.gradientType = e end
+            });
+        end;
+    end;
+    -- game visuals
+    do
+        ui_tabs["game_visuals"] = ui_window:AddTab({Title = " Game Visuals "});
+        do -- configuration
+            local config_groupbox1 = ui_groupbox["configuration_1"];
+            config_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Configuration",Side = "Left"});
+            config_groupbox1:AddSlider({
+                Title = "  Font Size",
+                Flag = "gvisuals_fontsize",
+                Min = 0,
+                Max = 20,
+                Default = 12,
+                Increment = 0.1,
+                Callback = function(e) tserv.game_visuals.configuration.font_size = e end;
+            });
+            config_groupbox1:AddDropdown({
+                Title = "Font",
+                Flag = "gvisuals_font",
+                Options = {"Proggyfont", "Silkscreen", "Arcade", "Monospace", "Arial", "goofy font 💀"},
+                Default = "Monospace",
+                Callback = function(e) tserv.game_visuals.configuration.font = e end;
+            });
+            config_groupbox1:AddToggle({
+                Title = "Text Outline",
+                Flag = "gvisuals_outline",
+                Default = false,
+                Callback = function(e) tserv.game_visuals.configuration.text_outline = e end;
+            });
+            config_groupbox1:AddSlider({
+                Title = "  Outline Transparency",
+                Flag = "gvisuals_outlinetransparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Increment = 0.1,
+                Callback = function(e) tserv.game_visuals.configuration.text_outline_transparency = e end;
+            });
+        end;
+        -- lootbags
+        do
+            local lootbags_groupbox1 = ui_groupbox["lootbags"];
+            lootbags_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Lootbags",Side = "Middle"});
+            lootbags_groupbox1:AddToggle({
+                Title = "Lootbags ESP",
+                Flag = "_lootbags_draw",
+                Default = false,
+            });
+            lootbags_groupbox1:AddColorPicker({
+                Title = "Lootbags Color",
+                Flag = "Lootbags_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            lootbags_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "lootbags_distance",
+                Default = false,
+            });
+        end;
+        -- cars
+        do
+            local cars_groupbox1 = ui_groupbox["cars"];
+            cars_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Cars",Side = "Right"});
+            cars_groupbox1:AddToggle({
+                Title = "Cars ESP",
+                Flag = "car_drawing",
+                Default = false,
+            });
+            cars_groupbox1:AddColorPicker({
+                Title = "Cars Color",
+                Flag = "Cars_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            cars_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "cars_distance",
+                Default = false,
+            });
+        end;
+        -- weapons
+        do
+            local weapons_groupbox1 = ui_groupbox["weapons"];
+            weapons_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Weapons",Side = "Left"});
+            weapons_groupbox1:AddToggle({
+                Title = "Weapons ESP",
+                Flag = "weapon_draw",
+                Default = false,
+            });
+            weapons_groupbox1:AddColorPicker({
+                Title = "Weapons Color",
+                Flag = "Weapons_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            weapons_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "weapon_distance",
+                Default = false,
+            });
+        end;
+        -- ammos
+        do
+            local ammos_groupbox1 = ui_groupbox["ammos"];
+            ammos_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Ammos",Side = "Middle"});
+            ammos_groupbox1:AddToggle({
+                Title = "Ammos ESP",
+                Flag = "ammos_draw",
+                Default = false,
+            });
+            ammos_groupbox1:AddColorPicker({
+                Title = "Ammos Color",
+                Flag = "Ammos_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            ammos_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "ammos_distance",
+                Default = false,
+            });
+        end;
+        -- items
+        do
+            local items_groupbox1 = ui_groupbox["items"];
+            items_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Items",Side = "Right"});
+            items_groupbox1:AddToggle({
+                Title = "Items ESP",
+                Flag = "items_draw",
+                Default = false,
+            });
+            items_groupbox1:AddColorPicker({
+                Title = "Items Color",
+                Flag = "Items_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            items_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "items_distance",
+                Default = false,
+            });
+        end;
+        -- china zombies
+        do
+            local czombie_groupbox1 = ui_groupbox["chinese_zombies"];
+            czombie_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Zombies",Side = "Left"});
+            czombie_groupbox1:AddToggle({
+                Title = "Chinese Zombies ESP",
+                Flag = "zombies_draw",
+                Default = false,
+            });
+            czombie_groupbox1:AddColorPicker({
+                Title = "Zombies Color",
+                Flag = "Zombies_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            czombie_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "zombies_distance",
+                Default = false,
+            });
+        end;
+        -- medicals
+        do
+            local medicals_groupbox1 = ui_groupbox["medicals"];
+            medicals_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Medicals",Side = "Middle"});
+            medicals_groupbox1:AddToggle({
+                Title = "Medicals Items ESP",
+                Flag = "medicals_draw",
+                Default = false,
+            });
+            medicals_groupbox1:AddColorPicker({
+                Title = "Medicals Color",
+                Flag = "Medicals_color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            medicals_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "medicals_distance",
+                Default = false,
+            });
+        end;
+        -- containers
+        do
+            local containers_groupbox1 = ui_groupbox["containers"];
+            containers_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "Containers",Side = "Right"});
+            containers_groupbox1:AddToggle({
+                Title = "Containers ESP",
+                Flag = "containers_esp",
+                Default = false,
+            });
+            containers_groupbox1:AddColorPicker({
+                Title = "Containers Color",
+                Flag = "containers_color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            containers_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "containers_distance",
+                Default = false,
+            });
+        end;
+        -- china soldiers
+        do
+            local soldiers_groupbox1 = ui_groupbox["soldiers"];
+            soldiers_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "NPCs",Side = "Left"});
+            soldiers_groupbox1:AddToggle({
+                Title = "Chinese Soldier ESP",
+                Flag = "npcs_draw",
+                Default = false,
+            });
+            soldiers_groupbox1:AddColorPicker({
+                Title = "Soldier Color",
+                Flag = "npcs_COLOR",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            soldiers_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "npcs_distance",
+                Default = false,
+            });
+        end;
+        -- tac zombie
+        do
+            local tactical_groupbox1 = ui_groupbox["tactical"];
+            tactical_groupbox1 = ui_tabs["game_visuals"]:AddGroupBox({Title = "NPCs",Side = "Middle"});
+            tactical_groupbox1:AddToggle({
+                Title = "Tactical Zombie ESP",
+                Flag = "tac_draw",
+                Default = false,
+            });
+            tactical_groupbox1:AddColorPicker({
+                Title = "Zombie Color",
+                Flag = "tac_color",
+                Default = Color3.fromRGB(255, 255, 255),
+            });
+            tactical_groupbox1:AddToggle({
+                Title = "Draw Distance",
+                Flag = "tac_distance",
+                Default = false,
+            });
+        end;
+    end;
+    -- combat
+    do
+        ui_tabs["combat"] = ui_window:AddTab({Title = " Combat "});
+        do -- configuraiton
+            local combat_groupbox1 = ui_groupbox["combat"];
+            combat_groupbox1 = ui_tabs["combat"]:AddGroupBox({Title = "Combat", Side = "Left"})
+            combat_groupbox1:AddToggle({
+                Title = "Target Information",
+                Flag = "Display Info",
+                Default = false,
+                Risky = true,
+            })
+            combat_groupbox1:AddToggle({
+                Title = "Silent Aim",
+                Flag = "silentaim",
+                Default = false,
+                Risky = true,
+            })
+            combat_groupbox1:AddToggle({
+                Title = "Instant Bullet",
+                Flag = "Instant Bullet",
+                Default = false,
+                Risky = true,
+            })
+            combat_groupbox1:AddToggle({
+                Title = "Silent Melee",
+                Flag = "silentmelee",
+                Default = false,
+                Risky = true,
+            })
+            combat_groupbox1:AddToggle({
+                Title = "Aimbot",
+                Flag = "Aimbot",
+                Default = false,
+            });
+            combat_groupbox1:AddDropdown({
+                Title = "Mode",
+                Flag = "Aimbot Mode",
+                Options = {"Camera", "Mouse"},
+                Default = "Camera",
+            });
+            combat_groupbox1:AddDropdown({
+                Title = "Part",
+                Flag = "Target Part",
+                Options = hit_parts,
+                Default = "Head",
+                Callback = function(e)
+                    tserv.target_part = e
+                end
+            });
+            --combat_groupbox1:AddToggle({
+            --    Title = "Only Target Visible",
+            --    Flag = "targetvisonly",
+            --    Default = false,
+            --    Callback = function(e) tserv.combat.combat.only_target_visible = e end
+            --})
+            --combat_groupbox1:AddToggle({
+            --    Title = "Teamcheck",
+            --    Flag = "targetteam",
+            --    Default = false,
+            --    Callback = function(e) tserv.combat.combat.teamcheck = e end
+            --});
+            combat_groupbox1:AddKeyPicker({
+                Title = "Target Bind",
+                Value = true,
+                Default = "MouseButton2",
+                Flag = "Aimbot Bind",
+                Mode = "Hold",
+                Callback = function(e)
+                    tserv.aimbot_bind = e
+                end
+            });
+
+            --{ Circle stuff 
+            --local container = Instance.new('ScreenGui')
+            --container.IgnoreGuiInset = true
+            --container.Parent = vars.gethui
+
+            --local aimbot_circle = Instance.new('Frame')
+            --local size = calculate_size(2, tserv.combat.combat.fov)
+            --aimbot_circle.Size = UDim2.fromOffset(size, size)
+            --aimbot_circle.AnchorPoint = Vector2.new(0.5, 0.5)
+            --aimbot_circle.BackgroundTransparency = 1
+            --aimbot_circle.Parent = container
+            --
+            --local uistroke = Instance.new('UIStroke')
+            --uistroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            --uistroke.Color = Color3.fromRGB(255, 255, 255)
+            --uistroke.Parent = aimbot_circle
+            --uistroke.Thickness = 2
+            --
+            --local uigradient = Instance.new('UIGradient')
+            --uigradient.Parent = uistroke
+            --
+            --local ui_corner = Instance.new('UICorner')
+            --ui_corner.CornerRadius = UDim.new(1, 0)
+            --ui_corner.Parent = aimbot_circle
+
+
+            --}
+            combat_groupbox1:AddToggle({
+                Title = "Draw Aimbot Fov",
+                Flag = "Draw FoV",
+                Default = false,
+            });
+            combat_groupbox1:AddSlider({
+                Title = "  Fov",
+                Flag = "Fov Size",
+                Min = 0,
+                Max = 1000,
+                Default = 0,
+                Increment = 1,
+                Callback = function(e)
+                   circle.Radius = e
+                   circle_outline.Radius = e
+                end
+            });
+            combat_groupbox1:AddDropdown({
+                Title = "Fov Origin",
+                Flag = "Fov Origin",
+                Options = {"Center", "Mouse", "Gun"},
+                Default = "Center",
+            });
+            combat_groupbox1:AddColorPicker({
+                Title = "Fov Circle",
+                Flag = "Fov_Circle_Color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e) 
+                    circle.Color = e
+                end
+            });
+
+            --combat_groupbox1:AddDropdown({
+            --    Title = "Fov Mode",
+            --    Flag = "fovmode",
+            --    Options = {"Standard", "Rainbow", "Animated Standard", "Animated Rainbow"},
+            --    Default = "Standard",
+            --    Callback = function(e) tserv.combat.combat.fov_mode = e end
+            --});
+
+            --
+            --combat_groupbox1:AddToggle({
+            --    Title = "Draw Silent Fov",
+            --    Flag = "drawfov2",
+            --    Default = false,
+            --    Callback = function(e) tserv.combat.combat.draw_fov2 = e 
+            --        silent_circle.Visible = tserv.combat.combat.draw_fov2
+            --    end
+            --});
+            --combat_groupbox1:AddSlider({
+            --    Title = "  Fov",
+            --    Flag = "fovsize2",
+            --    Min = 0,
+            --    Max = 1000,
+            --    Default = 0,
+            --    Increment = 1,
+            --    Callback = function(e) tserv.combat.combat.fov2 = e 
+            --        size2 = calculate_size(2, tserv.combat.combat.fov2)
+            --        silent_circle.Size = UDim2.fromOffset(size2, size2)
+            --    end
+            --});
+            --combat_groupbox1:AddColorPicker({
+            --    Title = "Fov Circle",
+            --    Flag = "Fov_Circle_Color2",
+            --    Default = Color3.fromRGB(255, 255, 255),
+            --    Callback = function(e) tserv.combat.combat.fov_color2 = e end
+            --});
+            --combat_groupbox1:AddDropdown({
+            --    Title = "Fov Mode",
+            --    Flag = "fovmode2",
+            --    Options = {"Standard", "Rainbow", "Animated Standard", "Animated Rainbow"},
+            --    Default = "Standard",
+            --    Callback = function(e) tserv.combat.combat.fov_mode2 = e end
+            --});
+            --
+
+            combat_groupbox1:AddToggle({
+                Title = "Target Snapline",
+                Flag = "Snapline",
+                Default = false,
+            });
+            combat_groupbox1:AddDropdown({
+                Title = "Line Origin",
+                Flag = "Line Origin",
+                Options = {"Center", "Mouse", "Top", "Bottom", "Gun"},
+                Default = "Center",
+            });
+            combat_groupbox1:AddColorPicker({
+                Title = "Line Color",
+                Flag = "Line Color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e)
+                    tserv.linecolor = e
+                end
+            });
+            --combat_groupbox1:AddToggle({
+            --    Title = "Mod Detector",
+            --    Flag = "moddet",
+            --    Default = true,
+            --    Callback = function(e) tserv.combat.combat.mod_detector = e end
+            --});
+            --combat_groupbox1:AddDropdown({
+            --    Title = "Alert Method",
+            --    Flag = "alertmethod",
+            --    Options = {"Notify", "Kick"},
+            --    Default = "Notify",
+            --    Callback = function(e) tserv.combat.combat.alert = e end
+            --});
+            --combat_groupbox1:AddToggle({
+            --    Title = "Invis",
+            --    Flag = "invis",
+            --    Default = false,
+            --    Callback = function(e) tserv.combat.combat.invis = e end
+            --});
+        end;
+        -- gunmods
+        do
+            local gunmods_groupbox1 = ui_groupbox["gunmods"];
+            gunmods_groupbox1 = ui_tabs["combat"]:AddGroupBox({Title = "Gun Mods", Side = "Middle"});
+
+            gunmods_groupbox1:AddToggle({
+                Title = "No Spread",
+                Flag = "No Spread",
+                Default = false,
+            });
+            gunmods_groupbox1:AddToggle({
+                Title = "No Recoil",
+                Flag = "No Recoil",
+                Default = false,
+            });
+            gunmods_groupbox1:AddSlider({
+                Title = "  Recoil %",
+                Flag = "Recoil",
+                Min = 0,
+                Max = 100,
+                Default = 0,
+                Suffix = "%",
+                Increment = 1,
+            });
+            --GunmodsTab:AddToggle({
+            --    Title = "Instant Aim",
+            --    Flag = "instantaim",
+            --    Default = false,
+            --    Risky = false,
+            --    Callback = function(e) tserv.combat.gun_mods.instant_aim = e end
+            --});
+            --GunmodsTab:AddToggle({
+            --    Title = "Force Full Auto",
+            --    Flag = "fff",
+            --    Default = false,
+            --    Risky = true,
+            --    Callback = function(e) tserv.combat.gun_mods.force_full_auto = e end
+            --});
+            --GunmodsTab:AddToggle({
+            --    Title = "Auto Reload",
+            --    Flag = "autoreload",
+            --    Default = false,
+            --    Callback = function(e) tserv.combat.gun_mods.auto_reload = e end
+            --})
+            gunmods_groupbox1:AddToggle({
+                Title = "No Weapon Bob",
+                Flag = "noweaponbob",
+                Default = false,
+                Callback = function(e)
+                    if e then
+                        rawset(weaponbobcache, 'BobSpeed', 0);
+                        rawset(weaponbobcache, 'BobAmplitudeHorizontal', 0);
+                        rawset(weaponbobcache, 'BobAmplitudeVertical', 0);
+                        rawset(weaponbobcache, 'MovementOffset', func_vars.nVec3());
+                        rawset(weaponbobcache, 'CrouchOffset', func_vars.nVec3());
+                        rawset(weaponbobcache, "TransitionRate", 0)
+			            rawset(weaponbobcache, "TransitionRateCrouch", 0)
+			            rawset(weaponbobcache, "BobPower", 0)
+                    else
+                        for i, v in oldweaponbobcache do
+                            rawset(weaponbobcache, i, v);
+                        end
+                    end
+                end
+            });
+        end;
+        -- camera
+        do
+            local camera_groupbox1 = ui_groupbox["camera"];
+            camera_groupbox1 = ui_tabs["combat"]:AddGroupBox({Title = "Camera", Side = "Right"});
+
+            camera_groupbox1:AddToggle({
+                Title = "Force 3rd person aim",
+                Flag = "f3personaim",
+                Default = false,
+                Callback = function(e)
+                    if e then
+                        rawset(guncontrollercache, "ForceAimInFirstPerson", false);
+                    else
+                        rawset(guncontrollercache, "ForceAimInFirstPerson", true);
+                    end
+                end
+            });
+            camera_groupbox1:AddToggle({
+                Title = "Camera Fov",
+                Flag = "camerafov",
+                Default = false,
+            });
+            camera_groupbox1:AddSlider({
+                Title = "  Fov",
+                Flag = "camfov",
+                Min = 1,
+                Max = 120,
+                Default = 75,
+                Increment = 1,
+            });
+            camera_groupbox1:AddKeyPicker({
+                Title = "Ads Keybind",
+                Value = true,
+                Default = "X",
+                Flag = "zoomkey",
+                Mode = "Hold",
+                Callback = function(e)
+                    tserv.ads_bind = e
+                end
+            });
+            camera_groupbox1:AddSlider({
+                Title = "   Ads Fov",
+                Flag = "zoomfov",
+                Min = 1,
+                Max = 120,
+                Default = 30,
+                Increment = 1,
+            });
+            camera_groupbox1:AddToggle({
+                Title = "Interactive Crosshair",
+                Flag = "interactivecross",
+                Default = false,
+            });
+            camera_groupbox1:AddToggle({
+                Title = "Remove Inventory Blur",
+                Flag = "removeblur",
+                Default = false,
+            });
+            camera_groupbox1:AddToggle({
+                Title = "Remove Vision Blur",
+                Flag = "removevisionblur",
+                Default = false,
+                Callback = function(e)
+                    Camera:FindFirstChild("VisionBlur").Enabled = not e;
+                end
+            });
+            camera_groupbox1:AddToggle({
+                Title = "Remove Bloody Vision",
+                Flag = "removebloodyvision",
+                Default = false,
+                Callback = function(e)
+                    Camera:FindFirstChild("BloodyVision").Enabled = not e;
+                end
+            });
+            camera_groupbox1:AddToggle({
+                Title = "Remove Visor",
+                Flag = "removevisor",
+                Default = false,
+                Callback = function(e)
+                    client.PlayerGui.GameUI:FindFirstChild("BackgroundUI").Enabled = not e;
+                end
+            });
+        end;
+        -- misc
+        do
+            local misc_groupbox = ui_groupbox["combat_misc"];
+            misc_groupbox = ui_tabs["combat"]:AddGroupBox({Title = "Misc", Side = "Middle"});
+            misc_groupbox:AddToggle({
+                Title = "Headshot Sound",
+                Flag = "headshotsound",
+                Default = false,
+            });
+            misc_groupbox:AddDropdown({
+                Title = "Sound",
+                Flag = "hsound",
+                Options = headsoundcache,
+                Default = "Rust",
+                Callback = function(e)
+                    tserv.headsound = e
+                end
+            });
+            misc_groupbox:AddSlider({
+                Title = "  Volume",
+                Flag = "hvolume",
+                Min = 0,
+                Max = 10,
+                Default = 2,
+                Increment = 0.01,
+            });
+            misc_groupbox:AddSlider({
+                Title = "  Pitch",
+                Flag = "hpitch",
+                Min = 0,
+                Max = 2,
+                Default = 1,
+                Increment = 0.01,
+            });
+            misc_groupbox:AddToggle({
+                Title = "Hit Sound",
+                Flag = "hitsound",
+                Default = false,
+            });
+            misc_groupbox:AddDropdown({
+                Title = "Sound",
+                Flag = "bsound",
+                Options = hitsoundcache,
+                Default = "Gamesense",
+                Callback = function(e)
+                    tserv.bodysound = e
+                end
+            });
+            misc_groupbox:AddSlider({
+                Title = "  Volume",
+                Flag = "bvolume",
+                Min = 0,
+                Max = 10,
+                Default = 2,
+                Increment = 0.01,
+            });
+            misc_groupbox:AddSlider({
+                Title = "  Pitch",
+                Flag = "bpitch",
+                Min = 0,
+                Max = 2,
+                Default = 1,
+                Increment = 0.01,
+            });
+            misc_groupbox:AddToggle({
+                Title = "Hit Logs",
+                Flag = "hitlogs",
+                Default = false,
+            });
+            misc_groupbox:AddToggle({
+                Title = "Hit Markers",
+                Flag = "hitmarker",
+                Default = false,
+            });
+            misc_groupbox:AddToggle({
+                Title = "Hit Tracers",
+                Flag = "hittracers",
+                Default = false,
+            });
+            misc_groupbox:AddColorPicker({
+                Title = "Tracers Color",
+                Flag = "tracerscolorsh",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e)
+                    tserv.tracer_color = e
+                end
+            });
+        end;
+        -- offsets
+        do
+            local offset_groupbox = ui_groupbox["offsets"];
+            offset_groupbox = ui_tabs["combat"]:AddGroupBox({Title = "Offsets", Side = "Right"});
+            offset_groupbox:AddToggle({
+                Title = "Weapon Offset",
+                Flag = "weapon_offset",
+                Default = false,
+            });
+            offset_groupbox:AddSlider({
+                Title = "  X Offset",
+                Flag = "x_offset",
+                Min = -10,
+                Max = 10,
+                Default = 0,
+                Increment = 0.1,
+            });
+            offset_groupbox:AddSlider({
+                Title = "  Y Offset",
+                Flag = "y_offset",
+                Min = -10,
+                Max = 10,
+                Default = 0,
+                Increment = 0.1,
+            });
+            offset_groupbox:AddSlider({
+                Title = "  Z Offset",
+                Flag = "z_offset",
+                Min = -10,
+                Max = 10,
+                Default = 0,
+                Increment = 0.1,
+            });
+        end;
+    end;
+    -- exploits
+    do
+        ui_tabs["exploits"] = ui_window:AddTab({Title = " Exploits "});
+        do -- player exploits
+            local charexp_groupbox = ui_groupbox["player_exploits"];
+            charexp_groupbox = ui_tabs["exploits"]:AddGroupBox({Title = "Player Modifiers", Side = "Left"});
+            charexp_groupbox:AddToggle({
+                Title = "Speedhack",
+                Flag = "speedhack",
+                Risky = true,
+                Default = false,
+            });
+            charexp_groupbox:AddSlider({
+                Title = "  Speedhack Velocity",
+                Flag = "speedvel",
+                Min = 0,
+                Max = 30,
+                Default = 0,
+                Increment = 1,
+            });
+            charexp_groupbox:AddToggle({
+                Title = "Jumphack",
+                Flag = "jumphack",
+                Risky = true,
+                Default = false,
+            });
+            charexp_groupbox:AddSlider({
+                Title = "  Jump Power",
+                Flag = "jumppower",
+                Min = 0,
+                Max = 50,
+                Default = 0,
+                Increment = 1,
+                Callback = LPH_JIT_MAX(function(e) 
+                    for _, v in getgc(true) do
+                        if type(v) == 'table' and rawget(v, 'Height') then
+                            if rawget(v, 'GetAttributes') then
+                                if Flags["jumphack"] then
+                                    v:SetAttribute('JumpPower', 30 + e)
+                                else
+                                    v:SetAttribute('JumpPower', 30)
+                                end
+                            end
+                        end
+                    end
+                end)
+            });
+            charexp_groupbox:AddToggle({
+                Title = "Flyhack",
+                Flag = "flyhack",
+                Risky = true,
+                Default = false,
+            });
+            charexp_groupbox:AddKeyPicker({
+                Title = "Fly Bind",
+                Value = true,
+                Default = "LeftShift",
+                Flag = "flybind",
+                Mode = "Hold",
+                Callback = function(e)
+                    tserv.fly_bind = e
+                end
+            });
+            charexp_groupbox:AddSlider({
+                Title = "  Flyhack Velocity",
+                Flag = "flyvel",
+                Min = 0,
+                Max = 30,
+                Default = 0,
+                Increment = 1,
+            });
+            --charexp_groupbox:AddToggle({
+            --    Title = "CarFly",
+            --    Flag = "carfly",
+            --    Risky = true,
+            --    Default = false,
+            --    Callback = function(e) tserv.player.player_modifiers.car_fly = e end
+            --});
+            --charexp_groupbox:AddKeyPicker({
+            --    Title = "CarFly Bind",
+            --    Value = true,
+            --    Default = "BackSlash",
+            --    Flag = "cflybind",
+            --    Mode = "Hold",
+            --    Callback = function(e) tserv.player.player_modifiers.c2 = e end
+            --});
+            --charexp_groupbox:AddSlider({
+            --    Title = "  Carfly Velocity",
+            --    Flag = "cflyvel",
+            --    Min = 0,
+            --    Max = 150,
+            --    Default = 0,
+            --    Increment = 1,
+            --    Callback = function(e) tserv.player.player_modifiers.car_fly_velocity = e end
+            --});
+        end;
+        -- exploits
+        do
+            local charexp_groupbox1 = ui_groupbox["player_exploits1"];
+            charexp_groupbox1 = ui_tabs["exploits"]:AddGroupBox({Title = "Exploits", Side = "Middle"});
+            charexp_groupbox1:AddToggle({
+                Title = "Anti Aim",
+                Flag = "antiaim",
+                Risky = true,
+                Default = false,
+            })
+            charexp_groupbox1:AddDropdown({
+                Title = "Anti Aim Angle",
+                Flag = "aimangle",
+                Options = {"Up", "Down", "Random", "Default"},
+                Default = "Default",
+                Callback = function(e)
+                    tserv.angle = e
+                end
+            })
+            --charexp_groupbox1:AddToggle({
+            --    Title = "Anti Aim (Second)",
+            --    Flag = "antiaim2",
+            --    Risky = true,
+            --    Default = false,
+            --    Callback = function(e) tserv.player.exploits.anti_aim_2 = e end
+            --})
+            --charexp_groupbox1:AddToggle({
+            --    Title = "Silent Steps",
+            --    Flag = "silent_steps",
+            --    Risky = true,
+            --    Default = false,
+            --    Callback = function(e) tserv.player.exploits.silent_steps = e end
+            --})
+            --charexp_groupbox1:AddToggle({
+            --    Title = "No Fall Damage",
+            --    Flag = "nofalldamage",
+            --    Risky = true,
+            --    Default = false,
+            --    Callback = function(e) tserv.player.exploits.no_fall_damage = e end
+            --})
+            charexp_groupbox1:AddSlider({
+                Title = "  Character Gravity",
+                Flag = "chargravity",
+                Min = 0,
+                Max = 100,
+                Default = 95,
+                Increment = 1,
+                Callback = function(e)  workspace.Gravity = e end;
+            });
+        end;
+        -- chams
+        do
+            local chams_groupbox1 = ui_groupbox["chams"];
+            chams_groupbox1 = ui_tabs["exploits"]:AddGroupBox({Title = "Local Chams", Side = "Right"});
+            chams_groupbox1:AddToggle({
+                Title = "Arm Chams",
+                Flag = "Arm chams",
+                Default = false,
+            });
+            chams_groupbox1:AddColorPicker({
+                Title = "Arm Color",
+                Flag = "Arm chams color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e)
+                    armcolor = e
+                end                
+            });
+            chams_groupbox1:AddDropdown({
+                Title = "Material",
+                Flag = "armmaterial",
+                Options = {"Neon", "ForceField", "Plastic"},
+                Default = "ForceField",
+            });
+            chams_groupbox1:AddToggle({
+                Title = "Body Chams",
+                Flag = "Body Chams",
+                Default = false,
+            });
+            chams_groupbox1:AddColorPicker({
+                Title = "Body Color",
+                Flag = "Body chams color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e)
+                    body_color = e
+                end
+            });
+            chams_groupbox1:AddDropdown({
+                Title = "Material",
+                Flag = "bodymaterial",
+                Options = {"Neon", "ForceField", "Plastic"},
+                Default = "ForceField",
+            });
+            chams_groupbox1:AddToggle({
+                Title = "Weapon Chams",
+                Flag = "Weapon Chams",
+                Default = false,
+            });
+            chams_groupbox1:AddColorPicker({
+                Title = "Weapon Color",
+                Flag = "Weapon chams color",
+                Default = Color3.fromRGB(255, 255, 255),
+                Callback = function(e)
+                    weaponcolor = e
+                end
+            });
+            chams_groupbox1:AddDropdown({
+                Title = "Material",
+                Flag = "weaponmaterial",
+                Options = {"Neon", "ForceField", "Plastic"},
+                Default = "ForceField",
+            });
+        end;
+    end;
+    -- world
+    do
+        ui_tabs["world"] = ui_window:AddTab({Title = " World "});
+        do -- world visuals
+            local world_groupbox = ui_groupbox["world"];
+            world_groupbox = ui_tabs["world"]:AddGroupBox({Title = "World", Side = "Left"});
+            world_groupbox:AddToggle({
+                Title = "Remove Clouds",
+                Flag = "CloudRemover",
+                Default = false,
+                Callback = function(e)
+                    if e and lighting_cache["Clouds"] then
+                        lighting_cache["Clouds"].Enabled = false;
+                    else
+                        lighting_cache["Clouds"].Enabled = true;
+                    end
+                end
+            });
+            world_groupbox:AddToggle({
+                Title = "Remove Grass",
+                Flag = "GrassRemover",
+                Default = false,
+                Callback = function(e)
+                    if e then
+                        sethiddenproperty(workspace.Terrain, "Decoration", false);
+                    else
+                        sethiddenproperty(workspace.Terrain, "Decoration", true);
+                    end
+                end
+            });
+
+            world_groupbox:AddSlider({
+                Title = "  Foliage Transparency",
+                Flag = "foliagetransparency",
+                Min = 0,
+                Max = 1,
+                Default = 0,
+                Increment = 0.1,
+                Callback = function(e)
+                    for _, tree in trees:GetChildren() do
+                        set_transparency(tree, e)
+                    end
+
+                    for _, foliage in foliages:GetChildren() do
+                       set_transparency(foliage, e)
+                    end
+                end
+            })
+            world_groupbox:AddToggle({
+                Title = "Skybox Changer",
+                Flag = "skyboxchanger",
+                Default = false,
+            });
+            world_groupbox:AddDropdown({
+                Title = "Skybox",
+                Flag = "skyboxpick",
+                Options = {    "Standard",    "Blue Sky",    "Vaporwave",    "Redshift",    "Blaze",    "Among Us",    "Dark Night",    "Bright Pink",    "Purple Sky",    "Galaxy"},
+                Default = "Standard",
+                Callback = function(e)
+                    if Flags["skyboxchanger"] then
+                        if skyboxes[e] then
+                            sky.SkyboxBk = "rbxassetid://" .. skyboxes[e][1]
+                            sky.SkyboxDn = "rbxassetid://" .. skyboxes[e][2]
+                            sky.SkyboxFt = "rbxassetid://" .. skyboxes[e][3]
+                            sky.SkyboxLf = "rbxassetid://" .. skyboxes[e][4]
+                            sky.SkyboxRt = "rbxassetid://" .. skyboxes[e][5]
+                            sky.SkyboxUp = "rbxassetid://" .. skyboxes[e][6]
+                        end
+                    end;
+                end;
+            });
+            -- lighting
+            do
+                local lighting_groupbox = ui_groupbox["lighting"];
+                lighting_groupbox = ui_tabs["world"]:AddGroupBox({Title = "Lighting", Side = "Middle"});
+                lighting_groupbox:AddToggle({
+                    Title = "Remove Bloom",
+                    Flag = "removebloom",
+                    Default = false,
+                    Callback = function(e)
+                        if e then
+                            lighting.Bloom.Enabled = false;
+                        else
+                            lighting.Bloom.Enabled = false;
+                        end
+                    end
+                });
+                lighting_groupbox:AddToggle({
+                    Title = "Remove Sunrays",
+                    Flag = "sunrays",
+                    Default = false,
+                    Callback = function(e)
+                        if e then
+                            lighting.SunRays.Enabled = false;
+                        else
+                            lighting.SunRays.Enabled = true;
+                        end
+                    end
+                });
+                lighting_groupbox:AddToggle({
+                    Title = "Remove Shadows",
+                    Flag = "shadows",
+                    Default = false,
+                    Callback = function(e)
+                        if e then
+                            lighting.GlobalShadows = false;
+                        else
+                            lighting.GlobalShadows = true;
+                        end
+                    end
+                });
+                lighting_groupbox:AddToggle({
+                    Title = "Remove Fog",
+                    Flag = "fog",
+                    Default = false,
+                });
+                lighting_groupbox:AddToggle({
+                    Title = "Full Bright",
+                    Flag = "fullbright",
+                    Default = false,
+                });
+                lighting_groupbox:AddToggle({
+                    Title = "Ambient",
+                    Flag = "ambient",
+                    Default = false,
+                });
+                lighting_groupbox:AddColorPicker({
+                    Title = "Ambient Color",
+                    Flag = "Ambient Color",
+                    Default = Color3.fromRGB(255, 255, 255),
+                    Callback = function(e)
+                        tserv.ambient = e
+                    end
+                });
+                lighting_groupbox:AddColorPicker({
+                    Title = "Outdoor Ambient Color",
+                    Flag = "Outdoor Ambient Color",
+                    Default = Color3.fromRGB(255, 255, 255),
+                    Callback = function(e)
+                        tserv.outambient = e
+                    end
+                });
+            end;
+        end;
+    end;
+end;
+--
+local math1 = privhook["math"];
+local speed, grav, delta = math1["sv_speed"], math1["sv_gravity"], 0
+local get_bullet_speed = function(gun_data)
+    local gun_stats = gun_data:FindFirstChild('Stats')
+    if gun_stats then
+        local bullet_settings = gun_stats:FindFirstChild('BulletSettings')
+        if bullet_settings then
+            local bullet_speed = bullet_settings:FindFirstChild('BulletSpeed')
+            if bullet_speed then
+                return bullet_speed.Value
+            end;
+        end;
+    end;
+    return speed;
+end;
+
+local get_gravity = function(gun_data)
+    local gun_stats = gun_data:FindFirstChild('Stats')
+    if gun_stats then
+        local bullet_settings = gun_stats:FindFirstChild('BulletSettings')
+        if bullet_settings then
+            local bullet_gravity = bullet_settings:FindFirstChild('BulletGravity')
+            if bullet_gravity and bullet_gravity.Value then
+                return grav
+            end;
+        end;
+    end;
+    return 0
+end;
+
+local calculate_time_to_hit = function(pos, vel, speed)
+    local a = vel:Dot(vel) - speed * speed
+    local b = 2 * pos:Dot(vel)
+    local c = pos:Dot(pos)
+    local discriminant = b * b - 4 * a * c
+    if discriminant < 0 then return nil end
+    local sqrt_disc = func_vars.sqrt(discriminant)
+    local t1 = (-b - sqrt_disc) / (2 * a)
+    local t2 = (-b + sqrt_disc) / (2 * a)
+    local t = math.min(t1, t2)
+    return (t > 0 and t) or (math.max(t1, t2) > 0 and math.max(t1, t2)) or nil
+end;
+
+local function is_valid_target(player) -- Team Check
+    if not workspace:FindFirstChild(player.Name) then return false end
+    if not workspace[player.Name]:FindFirstChild("HumanoidRootPart") then return false end
+    local player_squad = player:GetAttribute("SquadName")
+    local plr_squad = client:GetAttribute("SquadName")
+    if plr_squad then
+        return player_squad ~= plr_squad
+    end
+    return true
+end
+
+local predict_target_position = function(target_head, target_root, gun)
+    local shooter_pos = Camera.CFrame.Position
+    local bullet_speed = get_bullet_speed(gun)
+    local gravity = get_gravity(gun)
+    local target_pos = target_head.Position
+
+    local rel_pos = target_pos - shooter_pos
+
+    local time = nil
+    local predicted = target_pos
+
+    if Flags["Instant Bullet"] then
+        local horizontal_distance = Vector3.new(rel_pos.X, 0, rel_pos.Z).Magnitude
+        if bullet_speed ~= 0 then
+            time = horizontal_distance / bullet_speed
+        else
+            time = 0
+        end
+
+        predicted = target_pos - Vector3.new(0, -gravity * (time ^ 2), 0)
+
+    else
+        local target_velocity = target_root.AssemblyLinearVelocity
+        time = calculate_time_to_hit(rel_pos, target_velocity, bullet_speed)
+
+        if not time then return nil end
+
+        predicted = target_pos + (target_velocity * time) * (1 + delta)
+        predicted = predicted - Vector3.new(0, -gravity * (time ^ 2), 0)
+    end
+
+    return predicted, time
+end;
+
+--
+local function get_target(fov_size, body_part)
+    local closest_target = nil
+    local predicted_pos = nil
+
+    local closest_distance = math.huge
+    local closest_target_2 = nil
+
+    local mouse = mouse_location()
+    local mouse_pos = Vector2.new(mouse.X, mouse.Y)
+
+    local targets = players:GetPlayers()
+    for _, player in targets do
+        if player ~= client and not player:GetAttribute("Dead") then
+            local character = get_character(player);
+            if not character then 
+                continue ;
+            end;
+
+            local world_character = get_safe_character(player);
+            if not world_character then 
+                continue ;
+            end;
+
+            if not is_valid_target(player) then
+			    continue;
+		    end;
+
+            if body_part == "Random" then 
+                body_part = hit_parts[math.random(1, #hit_parts)]
+            end
+            local head = world_character and world_character:FindFirstChild(body_part)
+            local root = character and character:FindFirstChild('HumanoidRootPart')
+
+            if head and root then
+                local cso = client.CurrentSelectedObject.Value.Value
+                if not cso then 
+                    return 
+                end
+                local future_pos, _ = predict_target_position(head, root, cso)
+                
+                if future_pos then
+                    local screen_point, on_screen = Camera:WorldToViewportPoint(future_pos)
+                    if on_screen then
+                        local target_pos_2d = Vector2.new(screen_point.X, screen_point.Y)
+                        local distance_to_mouse = (mouse_pos - target_pos_2d).Magnitude
+
+                        if distance_to_mouse < closest_distance and distance_to_mouse <= fov_size then
+                            closest_distance = distance_to_mouse
+                            closest_target = head
+                            predicted_pos = future_pos
+                            closest_target_2 = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return closest_target, predicted_pos, closest_target_2
+end
+--
+local utility = {}
+--// Initialize Esp \\--
+do
+    local boundsParams = Instance.new("GetTextBoundsParams");
+	boundsParams.Size = func_vars.huge
+	utility.boundsParams = boundsParams;
+	
+	local raycastParams = RaycastParams.new();
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude;
+	raycastParams.FilterDescendantsInstances = {Camera, client.Character, trees, foliages, workspace:WaitForChild("IgnoreList")};
+	utility.raycastParams = raycastParams;
+	
+	function utility.worldToViewportPoint(camera, worldPosition)
+		return camera:WorldToViewportPoint(worldPosition);
+	end;
+	
+	function utility.create(a, b)
+		local c = func_vars.iNew(a);
+		for i, v in next, b or {} do
+			c[i] = v;
+		end;
+		return c;
+	end;
+	
+	function utility.vector2ToUdim2(vector)
+		return func_vars.uNew2(0, vector.X, 0, vector.Y);
+	end;
+	
+	function utility.vector3ToVector2(vector)
+		return func_vars.nVec2(vector.X, vector.Y);
+	end;
+	
+	function utility.textSize(text, font, size)
+        local bound = utility.boundsParams
+		bound.Font = font;
+		bound.Text = text;
+		bound.Size = size;
+		return text_service:GetTextBoundsAsync(bound);
+	end;
+	
+	function utility.drawLine(frame, from, to)
+		local netVector = to - from
+
+		local length = func_vars.sqrt(netVector.X ^ 2 + netVector.Y ^ 2)
+		local midpoint = func_vars.nVec2((from.X + to.X) / 2, (from.Y + to.Y) / 2)
+		local theta = func_vars.deg(func_vars.atan2(from.Y - to.Y, from.X - to.X))
+		
+		frame.AnchorPoint = func_vars.nVec2(0.5, 0.5);
+		frame.Position = func_vars.uFromOffset2(midpoint.X, midpoint.Y);
+		frame.Rotation = theta;
+		frame.Size = func_vars.uNew2(0, length, 0, skeleton_array.thickness);
+	end;
+	
+	function utility.getWeapon(player)
+		--if not workspace:FindFirstChild(player.Name) then return end
+        --if not workspace[player.Name]:FindFirstChild("HumanoidRootPart") then
+        --    return
+        --end
+        --local cso = player.CurrentSelectedObject.Value.Name
+        --if not cso then return "Fists" end
+        --local success, cg = pcall(function()
+        --    return player.GunInventory[cso].Value
+        --end)
+--
+        --if not success or not cg then
+        --    for _, gun in player.GunInventory:GetChildren() do
+        --        if gun.Value == cso then
+        --            cg = gun
+        --            break
+        --        end
+        --    end
+        --end
+        --return cg
+        if not player then return "Fists" end
+        local currentobj = player:FindFirstChild("CurrentSelectedObject") and player.CurrentSelectedObject.Value
+        local gunname = currentobj and currentobj.Value
+        return gunname and gunname.Name or "Fists"
+	end;
+	
+
+
+	function utility.isVisible(player, body_part)
+		local rootPart = func_vars.findFirstChild(player.Character, body_part or "HumanoidRootPart");
+		if not rootPart then return false end
+		local data = func_vars.raycast(workspace, Camera.CFrame.Position, (rootPart.Position - Camera.CFrame.Position), utility.raycastParams);
+		
+		return data and data.Instance and func_vars.isDescendantOf(data.Instance, player.Character);
+	end;
+
+end
+do
+	
+	local sgui = utility.create("ScreenGui", {
+		Parent = gethui; -- 🐟
+		DisplayOrder = 9999;
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
+		IgnoreGuiInset = true;
+		Enabled = true;
+	});
+	esp.sgui = sgui;
+	
+	function esp.showPlayer(player, vector, size, distance, palette, points)
+		palette = palette or nil;
+		
+		local cache = esp.cache[player];
+		cache.frame.Visible = true;
+		
+		local fontSize = gen_array.fontSize;
+		local spacingModifier = func_vars.clamp((distance - 100) * 0.01, 1, 2.5);
+		local halfSize = size * 0.5;
+		
+		if box_array.enabled and box_array.renderRange > distance then
+			local box1 = cache.box
+			local gradient = box1.UIGradient;
+
+			box1.Visible = true;
+			box1.Position = utility.vector2ToUdim2(vector - halfSize);
+			box1.Size = utility.vector2ToUdim2(size);
+			box1.BackgroundTransparency = box_array.fill and box_array.fillTransparency or 1;
+			
+			if box_array.gradient then
+				box1.BackgroundColor3 = func_vars.cNew3(255, 255, 255);
+
+				gradient.Enabled = true;
+				gradient.Color = func_vars.cSequenceNew(box_array.gradientColor, box_array.fillColor);
+				gradient.Rotation = box_array.gradientSpinAmount;
+			else
+				box1.BackgroundColor3 = box_array.fillColor;
+				gradient.Enabled = false;
+			end;	
+			
+			if box_array.type == "box" then
+				
+				box1.box.Visible = true;
+				box1.corner.Visible = false;
+				
+			else
+				
+				box1.box.Visible = false;
+				box1.corner.Visible = true;
+				
+			end;
+			
+			for i, v in next, func_vars.getDescendants(box1[box_array.type]) do
+				
+				if func_vars.isA(v, "Frame") then
+					
+					v.BackgroundColor3 = va[palette or "box"][palette and "box" or "color"];
+					v.BackgroundTransparency = box_array.transparency;
+					
+				elseif func_vars.isA(v, "UIStroke") then
+					
+					v.Enabled = box_array.outline;
+					v.Color = box_array.outlineColor;
+					
+				end;
+				
+				if v.Name == "resize" then
+					
+					v.Size = func_vars.uNew2(0, 1, 0, halfSize.X * 0.5);
+					
+				elseif v.Name == "reposize" then
+					
+					local opos = v.Position;
+					v.Size = func_vars.uNew2(0, 1, 0, halfSize.X * 0.5);
+					v.Position = func_vars.uNew2(opos.X.Scale, 0, 1, -halfSize.X * 0.5);
+					
+				end;
+				
+			end;
+			
+		else
+			
+			cache.box.Visible = false;
+			
+		end;
+		
+	
+
+		if name_array.enabled then
+			local name = cache.name
+			name.Visible = true;
+			name.FontFace = fonts[gen_array.font];
+			name.TextSize = fontSize;
+			name.Size = utility.vector2ToUdim2(func_vars.nVec2(size.X, fontSize));
+			name.Position = utility.vector2ToUdim2(vector - halfSize - func_vars.nVec2(0, fontSize + 3*spacingModifier));
+			name.TextColor3 = va[palette or "name"][palette and "name" or "color"];
+			name.TextStrokeColor3 = name_array.outlineColor;
+			name.TextStrokeTransparency = name_array.outline and name_array.transparency or 1;
+			name.TextTransparency = name_array.transparency;
+			
+		else
+			
+			cache.name.Visible = false;
+			
+		end;
+		
+		if distance_array.enabled then
+			local distance1 = cache.distance
+			distance1.Visible = true;
+			distance1.FontFace = fonts[gen_array.font];
+			distance1.TextSize = fontSize;
+			distance1.Size = utility.vector2ToUdim2(func_vars.nVec2(size.X, fontSize));
+			distance1.Position = utility.vector2ToUdim2(
+                vector + func_vars.nVec2(
+                    -halfSize.X, 
+                    halfSize.Y + 3 * spacingModifier + (name_array.enabled and 3 * spacingModifier + fontSize * 2 + 1 or fontSize + 3 * spacingModifier) - fontSize
+                )
+            );
+
+			distance1.TextColor3 = va[palette or "distance"][palette and "distance" or "color"];
+			distance1.TextStrokeColor3 = distance_array.outlineColor;
+			distance1.TextStrokeTransparency = distance_array.outline and distance_array.transparency or 1;
+			distance1.TextTransparency = distance_array.transparency;
+			
+			local distanceType = distance_array.type;
+			local modDistance = distance;
+			
+			if distanceType == "m" then
+				modDistance *= func_vars.studMeter;
+			elseif distanceType == "ft" then
+				modDistance *= func_vars.studFeet;
+			elseif distanceType == "i" then
+				modDistance *= func_vars.studInch;
+			elseif distanceType == "mi" then
+				modDistance *= func_vars.studMile;
+			end;
+			
+			local decMod = 10^distance_array.decimals;
+			distance1.Text = tostring(func_vars.floor(modDistance * decMod)/decMod) .. distanceType;
+
+		else
+
+			cache.distance.Visible = false;
+
+		end;
+		
+		if weapon_array.enabled then
+            local weapon = cache.weapon
+			weapon.Visible = true;
+			weapon.FontFace = fonts[gen_array.font];
+			weapon.TextSize = fontSize;
+			weapon.Size = utility.vector2ToUdim2(func_vars.nVec2(size.X, fontSize));
+			weapon.Position = utility.vector2ToUdim2(vector + func_vars.nVec2(-halfSize.X, halfSize.Y + 3 * spacingModifier));
+			weapon.TextColor3 = weapon_array.color;
+			weapon.TextStrokeColor3 = weapon_array.outlineColor;
+			weapon.TextStrokeTransparency = weapon_array.outline and weapon_array.transparency or 1;
+			weapon.TextTransparency = weapon_array.transparency;
+			local weaponname = utility.getWeapon(player); -- // replace in future, maverick!
+            weapon.Text = tostring(weaponname)
+		else
+
+			cache.weapon.Visible = false;
+
+		end;
+		
+		
+		
+		if skeleton_array.enabled and points and skeleton_array.renderRange > distance then
+			local skeleton = cache.skeleton
+			skeleton.Visible = true;
+
+			utility.drawLine(skeleton.head, points.head, points.torso[1]);
+			utility.drawLine(skeleton.torso1, points.torso[1], points.torso[2]);
+			
+			utility.drawLine(skeleton.larm1, points.torso[1], points.larm[1]);
+			utility.drawLine(skeleton.larm2, points.larm[1], points.larm[2]);
+			utility.drawLine(skeleton.larm3, points.larm[2], points.larm[3]);
+			
+			utility.drawLine(skeleton.rarm1, points.torso[1], points.rarm[1]);
+			utility.drawLine(skeleton.rarm2, points.rarm[1], points.rarm[2]);
+			utility.drawLine(skeleton.rarm3, points.rarm[2], points.rarm[3]);
+			
+			utility.drawLine(skeleton.lleg1, points.torso[2], points.lleg[1]);
+			utility.drawLine(skeleton.lleg2, points.lleg[1], points.lleg[2]);
+			utility.drawLine(skeleton.lleg3, points.lleg[2], points.lleg[3]);
+
+			utility.drawLine(skeleton.rleg1, points.torso[2], points.rleg[1]);
+			utility.drawLine(skeleton.rleg2, points.rleg[1], points.rleg[2]);
+			utility.drawLine(skeleton.rleg3, points.rleg[2], points.rleg[3]);
+			local gStart = (vector - halfSize).Y;
+            local gSize = size.Y;
+			for i, v in next, func_vars.getChildren(skeleton) do
+				
+				local gradient = func_vars.findFirstChild(v, "UIGradient") or utility.create("UIGradient", {Parent = v});
+
+				v.BackgroundColor3 = skeleton_array.color;
+				v.BackgroundTransparency = skeleton_array.transparency;
+
+				if skeleton_array.gradient then
+					gradient.Enabled = true;
+					v.BackgroundColor3 = func_vars.cNew3(1, 1, 1);
+
+					local fCol, gCol = skeleton_array.color, skeleton_array.gradientColor;
+
+					if skeleton_array.gradientType == "singular" then
+
+						-- // get start & end points
+						local rotation, position, length = func_vars.rad(v.Rotation), func_vars.nVec2(v.Position.X.Offset, v.Position.Y.Offset), v.Size.X.Offset;
+						local delta = func_vars.nVec2(func_vars.cos(rotation), func_vars.sin(rotation)) * length; -- did you know that in classic graph y=x you need to draw sqrt2 units to fill 1 unit?
+
+						local start, goal = ((position - delta).Y - gStart) / gSize, ((position + delta).Y - gStart) / gSize;
+						gradient.Color = func_vars.cSequenceNew(func_vars.cLerp3(fCol, gCol, start), func_vars.cLerp3(fCol, gCol, goal));
+						
+					else
+						gradient.Color = func_vars.cSequenceNew(fCol, gCol);
+					end;
+				else
+					gradient.Enabled = false;
+					v.BackgroundColor3 = skeleton_array.color;
+				end;
+				
+			end;
+			
+		else
+			
+			cache.skeleton.Visible = false;
+			
+		end;
+		
+	end;
+	
+	function esp.hidePlayer(player)
+		
+		local cache = esp.cache[player];
+		cache.frame.Visible = false;
+		
+		
+	end;
+	
+	function esp.addPlayer(player)
+		
+		local frame = utility.create("Frame", {
+			Parent = esp.sgui;
+			BackgroundTransparency = 1;
+			Visible = true;
+			Size = func_vars.uNew2(1, 0, 1, 0);
+		});
+		
+		local box = utility.create("Frame", {
+			Parent = frame;
+			BorderSizePixel = 0;
+			Visible = true;
+		});
+		-- types & gradient
+		do
+			utility.create("UIGradient", {
+				Parent = box;
+				Enabled = false;
+			});
+			--outlines for box type
+			do
+				
+				local boxTypeBox = utility.create("Frame", {
+					Parent = box;
+					BackgroundTransparency = 1;
+					Size = func_vars.uNew2(1, 0, 1, 0);
+					Name = "box";
+				});
+				
+				--left
+				utility.create("Frame", {
+					Parent = boxTypeBox;
+					Size = func_vars.uNew2(0, 1, 1, 0);
+					BorderSizePixel = 0;
+					ZIndex = 2;
+				});
+
+				--right
+				utility.create("Frame", {
+					Parent = boxTypeBox;
+					Size = func_vars.uNew2(0, 1, 1, 0);
+					Position = func_vars.uNew2(1, -1, 0, 0);
+					BorderSizePixel = 0;
+					ZIndex = 2;
+				});
+
+				--top
+				utility.create("Frame", {
+					Parent = boxTypeBox;
+					Size = func_vars.uNew2(1, 0, 0, 1);
+					BorderSizePixel = 0;
+					ZIndex = 2;
+				});
+
+				--bottom
+				utility.create("Frame", {
+					Parent = boxTypeBox;
+					Size = func_vars.uNew2(1, 0, 0, 1);
+					Position = func_vars.uNew2(0, 0, 1, -1);
+					BorderSizePixel = 0;
+					ZIndex = 2;
+				});
+
+				--left outline
+				utility.create("UIStroke", {
+					Parent = utility.create("Frame", {
+						Parent = boxTypeBox;
+						Size = func_vars.uNew2(0, 1, 1, 0);
+						BorderSizePixel = 0;
+						ZIndex = 1;
+					});
+					LineJoinMode = Enum.LineJoinMode.Miter;
+					Thickness = 1;
+				});
+
+				--right outline
+				utility.create("UIStroke", {
+					Parent = utility.create("Frame", {
+						Parent = boxTypeBox;
+						Size = func_vars.uNew2(0, 1, 1, 0);
+						Position = func_vars.uNew2(1, -1, 0, 0);
+						BorderSizePixel = 0;
+						ZIndex = 1;
+					});
+					LineJoinMode = Enum.LineJoinMode.Miter;
+					Thickness = 1;
+				});
+
+				--top outline
+				utility.create("UIStroke", {
+					Parent = utility.create("Frame", {
+						Parent = boxTypeBox;
+						Size = func_vars.uNew2(1, 0, 0, 1);
+						BorderSizePixel = 0;
+						ZIndex = 1;
+					});
+					LineJoinMode = Enum.LineJoinMode.Miter;
+					Thickness = 1;
+				});
+
+				--bottom outline
+				utility.create("UIStroke", {
+					Parent = utility.create("Frame", {
+						Parent = boxTypeBox;
+						Size = func_vars.uNew2(1, 0, 0, 1);
+						Position = func_vars.uNew2(0, 0, 1, -1);
+						BorderSizePixel = 0;
+						ZIndex = 1;
+					});
+					LineJoinMode = Enum.LineJoinMode.Miter;
+					Thickness = 1;
+				});
+
+			end;
+			
+			--outlines for corner type
+			do
+
+				local boxTypeCorner = utility.create("Frame", {
+					Parent = box;
+					BackgroundTransparency = 1;
+					Size = func_vars.uNew2(1, 0, 1, 0);
+					Name = "corner";
+				});
+				
+				--top left corner
+				do
+					
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0, 1, 1, 0);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+						Name = "resize";
+					});
+					
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0.25, 0, 0, 1);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+					});
+					
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0, 1, 1, 0);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+							Name = "resize";
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+					
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0.25, 0, 0, 1);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+					
+				end;
+				
+				--top right corner
+				do
+
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0, 1, 1, 0);
+						Position = func_vars.uNew2(1, -1, 0, 0);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+						Name = "resize";
+					});
+
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0.25, 0, 0, 1);
+						Position = func_vars.uNew2(0.75, 0, 0, 0);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+					});
+
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0, 1, 1, 0);
+							Position = func_vars.uNew2(1, -1, 0, 0);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+							Name = "resize"
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0.25, 0, 0, 1);
+							Position = func_vars.uNew2(0.75, 0, 0, 0);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+
+				end;
+				
+				--lower left corner
+				do
+
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0, 1, 1, 0);
+						Position = func_vars.uNew2(0, 0, 1, -1);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+						Name = "reposize";
+					});
+
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0.25, 0, 0, 1);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+					});
+
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0, 1, 1, 0);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+							Name = "reposize";
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0.25, 0, 0, 1);
+							Position = func_vars.uNew2(0, 0, 1, -1);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+
+				end;
+
+				--lower right corner
+				do
+
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0, 1, 1, 0);
+						Position = func_vars.uNew2(1, -1, 0, 0);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+						Name = "reposize";
+					});
+
+					utility.create("Frame", {
+						Parent = boxTypeCorner;
+						Size = func_vars.uNew2(0.25, 0, 0, 1);
+						Position = func_vars.uNew2(0.75, 0, 1, -1);
+						BorderSizePixel = 0;
+						ZIndex = 2;
+					});
+
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0, 1, 1, 0);
+							Position = func_vars.uNew2(1, -1, 0, 0);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+							Name = "reposize"
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+
+					utility.create("UIStroke", {
+						Parent = utility.create("Frame", {
+							Parent = boxTypeCorner;
+							Size = func_vars.uNew2(0.25, 0, 0, 1);
+							Position = func_vars.uNew2(0.75, 0, 1, -1);
+							BorderSizePixel = 0;
+							ZIndex = 1;
+						});
+						LineJoinMode = Enum.LineJoinMode.Miter;
+						Thickness = 1;
+					});
+
+				end;
+
+			end;
+			
+		end;
+		
+		local name = utility.create("TextLabel", {
+			Parent = frame;
+			Text = player.Name;
+			BackgroundTransparency = 1;
+			TextXAlignment = Enum.TextXAlignment.Center;
+		});
+		
+		local distance = utility.create("TextLabel", {
+			Parent = frame;
+			BackgroundTransparency = 1;
+			TextXAlignment = Enum.TextXAlignment.Center;
+		});
+		
+		local weapon = utility.create("TextLabel", {
+			Parent = frame;
+			BackgroundTransparency = 1;
+			TextXAlignment = Enum.TextXAlignment.Center;
+		});
+		
+		
+		local skeleton = utility.create("Frame", {
+			Parent = frame;
+			Size = func_vars.uNew2(1, 0, 1, 0);
+			BackgroundTransparency = 1;
+		});
+		
+		-- // todo for maverick: if aftermath change parts in future, change this below
+		do
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "head";
+				BorderSizePixel = 0;
+			});
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "torso1";
+				BorderSizePixel = 0;
+			});
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "torso2";
+				BorderSizePixel = 0;
+			});
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "larm1";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "larm2";
+				BorderSizePixel = 0;
+			});
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "larm3";
+				BorderSizePixel = 0;
+			});
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "rarm1";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "rarm2";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "rarm3";
+				BorderSizePixel = 0;
+			});
+			
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "lleg1";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "lleg2";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "lleg3";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "rleg1";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "rleg2";
+				BorderSizePixel = 0;
+			});
+
+			utility.create("Frame", {
+				Parent = skeleton;
+				Name = "rleg3";
+				BorderSizePixel = 0;
+			});
+			
+		end;
+		
+		
+
+		esp.cache[player] = {
+			frame = frame;
+			box = box;
+			name = name;
+			distance = distance;
+			weapon = weapon;
+			
+			skeleton = skeleton;
+			
+		}
+		
+	end;
+	
+	function esp.removePlayer(player)
+		
+		local cache = esp.cache[player];
+		cache.frame:Destroy();
+		func_vars.clear(cache);
+		esp.cache[player] = nil;
+		
+	end;
+	
+end;
+--
+local is_visible = false
+local elp = function()
+    --// Esp Loop \\--
+	box_array.gradientSpinAmount += delta * 80
+	local cameraCFrame = Camera.CFrame;
+	local cameraPosition = cameraCFrame.Position;
+	local cameraAngles = cameraCFrame - cameraPosition;
+	
+	local targets = players:GetPlayers();
+    local _, _, target = get_target(Flags["Fov Size"], "Head");
+	
+	utility.raycastParams.FilterDescendantsInstances = {Camera, client.Character, trees, foliages, workspace:WaitForChild("IgnoreList")};
+	
+	for _, player in next, (targets) do
+		if player == client then continue end
+		if not esp.cache[player] then
+			esp.addPlayer(player);
+		end;
+		
+		if not workspace:FindFirstChild(player.Name) then
+            esp.hidePlayer(player)
+            continue
+        end
+        if not workspace[player.Name]:FindFirstChild("HumanoidRootPart") then
+            esp.hidePlayer(player)
+            continue
+        end
+        local character = get_safe_character(player)
+        if not character then
+            esp.hidePlayer(player)
+            continue
+        end
+        local rootPart = character and func_vars.findFirstChild(character, "HumanoidRootPart")
+        if not rootPart then
+            esp.hidePlayer(player)
+            continue
+        end
+		if gen_array.teamcheck and not is_valid_target(player) then
+			esp.hidePlayer(player);
+			continue;
+		end;
+		local distance = (cameraPosition - rootPart.Position).Magnitude;
+		
+		if distance > gen_array.renderRange then
+			esp.hidePlayer(player);
+			continue;
+		end;
+		if player:GetAttribute("Dead") then
+            esp.hidePlayer(player);
+            continue
+        end
+		
+		local loc = rootPart.Position - func_vars.nVec3(0, .35, 0);
+
+		local position, onScreen = utility.worldToViewportPoint(Camera, loc);
+		
+		if onScreen then
+			
+			local boxSize;
+			
+			do
+				
+				local size, pos = gen_array.boxSize, loc;
+				
+				local addX = cameraAngles * func_vars.nVec3(func_vars.clamp(func_vars.abs(size.X * 0.5) + 0.5, 0, gen_array.maxBoxSize.X), 0, 0);
+				local addY = cameraAngles * func_vars.nVec3(0, func_vars.clamp(func_vars.abs(size.Y * 0.5) + 0.5, 0, gen_array.maxBoxSize.Y), 0);
+
+				local left = func_vars.worldToViewportPoint(Camera, pos + addX);
+				local right = func_vars.worldToViewportPoint(Camera, pos - addX);
+
+				local top = func_vars.worldToViewportPoint(Camera, pos + addY);
+				local bottom = func_vars.worldToViewportPoint(Camera, pos - addY);
+
+				boxSize = func_vars.nVec2(func_vars.max(func_vars.abs(left.X - right.X), 5), func_vars.max(func_vars.abs(top.Y - bottom.Y), 7));
+				
+			end;
+			
+			local points;
+			
+			if skeleton_array.enabled then
+				for _, body_part in gen_array.points do
+					if type(body_part) == 'table' then
+						for _, point in body_part do
+							if not character:FindFirstChild(point) then
+								return
+							end
+						end
+					end
+					if type(body_part) == 'string' then
+						if not character:FindFirstChild(body_part) then
+							return
+						end
+					end
+				end
+				points = {
+					torso = {utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.torso[1]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.torso[2]].Position))};
+					larm = {utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.larm[1]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.larm[2]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.larm[3]].Position))};
+					rarm = {utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.rarm[1]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.rarm[2]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.rarm[3]].Position))};
+					lleg = {utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.lleg[1]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.lleg[2]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.lleg[3]].Position))};
+					rleg = {utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.rleg[1]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.rleg[2]].Position)), utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.rleg[3]].Position))};
+					head = utility.vector3ToVector2(utility.worldToViewportPoint(Camera, character[gen_array.points.head].Position));
+				};
+				
+			end;
+			
+			local palette = target_array.enabled and (target == player and "target");
+            if utility.isVisible(player) then
+                is_visible = true
+            else
+                is_visible = false
+            end
+            if not palette and visible_array.enabled and is_visible then
+				palette = "visible";
+			end;
+			
+			esp.showPlayer(player, func_vars.nVec2(func_vars.floor(position.X), func_vars.floor(position.Y)), boxSize, distance, palette, points);
+			
+		else
+			esp.hidePlayer(player);
+			continue;
+		end;
+    end
+end
+run_service:BindToRenderStep("MAIN", 200, LPH_NO_VIRTUALIZE(function()
+    elp()
+end))
+local function player_remove(player)
+    if esp.cache[player] then
+		esp.removePlayer(player);
+	end;
+end
+players.PlayerRemoving:Connect(LPH_NO_VIRTUALIZE(function(player)
+	player_remove(player)
+end));
+--
+do -- world visuals
+    local metatable = {}
+    metatable.__index = metatable
+
+    do -- metatable functions 
+        function metatable:set_text(new_text)
+        	if self and self.Text then
+        		self.current_text = new_text
+        		self.Text.Text = new_text
+        	end
+        end
+
+        function metatable:die()
+        	if self then
+        		if self.connections then
+        			for _, connection in self.connections do
+        				connection:Disconnect()
+        			end
+        		end
+        		if self.Text then
+        			self.Text:Destroy()
+                    self.Text = nil
+        		end
+        		if self.Billboard then
+        			self.Billboard:Destroy()
+                    self.Billboard = nil
+        		end
+        		table.clear(self)
+        		self = nil
+        	end
+        end
+
+        function metatable:add_connection(event)
+        	if self then
+        		table.insert(self.connections, event)
+        	end
+        end
+    end;
+    --
+    do
+        local add_instance = function(object, data)
+    	    local billboard = Instance.new('BillboardGui')
+    	    billboard.AlwaysOnTop = true
+    	    billboard.Size = UDim2.fromOffset(300, 100)
+    	    billboard.Adornee = object
+    	    billboard.MaxDistance = 300
+
+    	    billboard.Parent = gethui
+    	    local frame = Instance.new('Frame')
+    	    frame.AutomaticSize = Enum.AutomaticSize.XY
+    	    frame.Size = UDim2.fromOffset(0, 0)
+    	    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    	    frame.BackgroundTransparency = 1
+    	    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    	    frame.Position = UDim2.fromScale(0.5, 0.5)
+    	    frame.Parent = billboard
+    	    local ui_corner = Instance.new('UICorner')
+    	    ui_corner.Parent = frame
+
+    	    local text = Instance.new('TextLabel')
+
+    	    text.Size                   = UDim2.fromScale(1, 1)
+
+    	    -- sigma
+    	    text.TextTruncate           = Enum.TextTruncate.None
+    	    text.TextWrapped            = false
+
+    	    text.BackgroundTransparency = 1
+
+    	    text.TextTransparency = 0
+    	    text.TextSize               = Flags["gvisuals_fontsize"]
+    	    text.TextColor3             = Color3.new(1, 1, 1)
+    	    text.TextStrokeColor3       = Color3.new(0, 0, 0)
+    	    text.TextStrokeTransparency = 0.8
+    	    text.RichText = true
+    	    --Font.fromId(12187371840)
+    	    text.FontFace               = Font.fromEnum(Enum.Font.RobotoMono)
+    	    text.Parent                 = frame
+
+    	    local draw = setmetatable({
+    	    	Text = text,
+    	    	Billboard = billboard,
+    	    	enabled = true,
+    	    	connections = {},
+    	    	current_text = ""
+    	    }, metatable)
+
+    	    for index, value in data do
+    	    	if index == 'Text' then
+    	    		draw:set_text(value)
+    	    		continue
+    	    	end
+    	    	text[index] = value
+    	    end
+
+    	    return draw
+        end;
+        --
+        do
+            local c_id_map
+            for _, v in getgc(true) do
+            	if type(v) ~= 'table' then
+            		continue
+            	end
+            	if rawget(v, 'CIDMap') then
+            		c_id_map = v.CIDMap
+            		break
+            	end
+            end
+            local types = {
+            	items = 1
+            }
+            local drawing_containers = {}
+            for _, value in types do
+            	drawing_containers[value] = {}
+            end
+            local draw_instance = function(esp_type, obj, ...)
+            	local drawing_objects = drawing_containers[esp_type]
+            	if drawing_objects[obj] then
+            		return
+            	end
+            
+            	local drawing = add_instance(obj, ...)
+            	drawing_objects[obj] = drawing
+            	return drawing
+            end;
+            --
+            do
+                local ember_shared_library = rs:FindFirstChild('EmberSharedLibrary');
+                local items_folder = ember_shared_library.GameShared.Item.Items;
+                local ammos = items_folder:FindFirstChild('Ammo');
+                local survival_folder = items_folder:FindFirstChild('Survival');
+                local equipment = items_folder:FindFirstChild('Equipment');
+                local weapons = equipment:FindFirstChild('Weapon');
+                local primary_weapons = weapons:FindFirstChild('Primary');
+                local sidearm_weapons = weapons:FindFirstChild('Sidearm');
+                local melee_weapons   = weapons:FindFirstChild('Melee');
+                local medical_folder = survival_folder:FindFirstChild('Medical');
+
+                local get_item_type = function(class_name)
+                	local item_type = 'items'
+
+                	if primary_weapons:FindFirstChild(class_name) or sidearm_weapons:FindFirstChild(class_name) then
+                		item_type = 'guns'
+                	end
+                	if melee_weapons:FindFirstChild(class_name) then
+                		item_type = 'melee'
+                	end
+                	if ammos:FindFirstChild(class_name) then
+                		item_type = 'ammos'
+                	end
+                	if medical_folder:FindFirstChild(class_name) then
+                		item_type = 'medicals'
+                	end
+                
+                	return item_type
+                end;
+                --
+                do
+                    local ground_item_esp = function(configuration: Instance)
+                    	if not (configuration) then
+                    		return
+                    	end
+                    	local c_id = configuration:GetAttribute('CId')
+                    	if not c_id then
+                    		return print('[ground_item_esp] no CId')
+                    	end
+                    	local item_type = c_id_map[c_id]
+                    	if not item_type then
+                    		return print('no type')
+                    	end
+                    
+                    	local base_object = configuration.Parent and configuration.Parent:IsA('BasePart') and configuration.Parent or configuration
+                    
+                    	local data = require(rs:FindFirstChild(item_type, true))
+                    
+                    	if not data then
+                    		return print('no data')
+                    	end
+                    	local current_item_type = get_item_type(item_type)
+                    	local current_settings = tserv.game_visuals[current_item_type]
+                    	if not (current_settings and current_settings.esp) then
+                    		return
+                    	end
+                    
+                    	local quantity = configuration:GetAttribute('Quantity')
+                    
+                    	local display_text = data.DisplayName
+                    	if quantity > 1 then
+                    		display_text = string.format('%s (%sx)', data.DisplayName, configuration:GetAttribute('Quantity'))
+                    	end
+                    	local attachment = Instance.new('Attachment', base_object)
+                    	attachment.WorldCFrame = configuration:GetAttribute('CFrame')
+                    	local draw = draw_instance(types.items, attachment, {
+                    		Text = display_text,
+                    		TextColor3 = current_settings.esp_color
+                    	})
+                    
+                    	if draw then
+                    		draw:add_connection(configuration.Destroying:Connect(function()
+                    			attachment:Destroy()
+                    			draw:die()
+                    		end))
+                    		draw:add_connection(base_object.Destroying:Connect(function()
+                    			attachment:Destroy()
+                    			draw:die()
+                    		end));
+                    	end;
+                    end;
+
+                    for _, item in collection:GetTagged('GROUND_ITEMS') do
+                    	xpcall(ground_item_esp, print, item)
+                    end;
+
+                    collection:GetInstanceAddedSignal('GROUND_ITEMS'):Connect(function(item)
+                    	xpcall(ground_item_esp, print, item)
+                    end);
+                end;
+            end;
+        end;
+    end;
+end;
+--
+do -- combat
+    local snapline, snapline_outline = Drawing.new("Line"), Drawing.new("Line");
+    --
+    do
+        snapline = snapline or Drawing.new("Line")
+        snapline.Visible = false
+        snapline.Thickness = 1
+        snapline.ZIndex = 2
+
+        snapline_outline = snapline_outline or Drawing.new("Line")
+        snapline_outline.Visible = false
+        snapline_outline.Thickness = 2
+        snapline_outline.ZIndex = 1
+    end
+    --  
+    local is_zooming, current_fov_value = false, nil;
+
+
+    do -- instances
+        local screen_gui = create_instance("ScreenGui", { Parent = gethui });
+
+        local player_inventory = create_instance("Frame", {
+            Name = "player_inventory",
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundColor3 = Color3.fromRGB(12, 12, 12),
+            BorderColor3 = Color3.fromRGB(0, 0, 0),
+            BorderSizePixel = 0,
+            Position = UDim2.new(1, -4, 0, -4),
+            AnchorPoint = Vector2.new(1, 0),
+            Size = UDim2.new(0, 250, 0, 185),
+            Visible = false,
+            Parent = screen_gui
+        });
+
+        create_instance("UIListLayout", {
+            Name = "UIListLayout",
+            Padding = UDim.new(0, 18),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = player_inventory
+        });
+
+        local player_1 = create_instance("TextLabel", {
+            Name = "Player",
+            FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json"),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 18,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BackgroundTransparency = 1,
+            BorderColor3 = Color3.fromRGB(0, 0, 0),
+            BorderSizePixel = 0,
+            Size = UDim2.new(0, 0, 0, 20),
+            Parent = player_inventory
+        });
+
+        create_instance("UIPadding", {
+            Name = "HeaderPadding",
+            PaddingTop = UDim.new(0, 10),
+            Parent = player_1
+        });
+
+        do -- initialize
+            local function create_slot_label(_, slotindex)
+                local slot = create_instance("TextLabel", {
+                    Name = "Slot" .. slotindex,
+                    FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json"),
+                    RichText = true,
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                    TextSize = 12,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderColor3 = Color3.fromRGB(0, 0, 0),
+                    BorderSizePixel = 0,
+                    LayoutOrder = slotindex,
+                    Size = UDim2.new(0, 0, 0, 12),
+                    Parent = player_inventory
+                })
+
+                create_instance("UIPadding", {
+                    Name = "UIPadding",
+                    PaddingLeft = UDim.new(0, 10),
+                    PaddingRight = UDim.new(0, 10),
+                    Parent = slot
+                })
+                return slot
+            end
+
+            for i = 1, 5 do
+                cachedslots[i] = create_slot_label("Slot" .. i, i)
+            end
+
+            local function gsub_itemname(attribute)
+                if attribute then
+                    local decoded_json = http_service:JSONDecode(attribute)
+                    local item_name = ember_require:GetModuleByName(decoded_json.ClassName).DisplayName
+                    return tostring(item_name)
+                end
+                return "None"
+            end
+
+            local function update_invviewer(target)
+                if target and Flags["player_infoboard"] then
+                    player_inventory.Visible = true
+                    local target_player = players:FindFirstChild(target.Name)
+                    if target_player then
+                        local inventory = target_player:FindFirstChild("GunInventory")
+                        if inventory then
+                            player_1.Text = " " .. target.Name .. "'s Inventory "
+
+                            local stored_slots = {}
+
+                            for _, item in ipairs(inventory:GetChildren()) do
+                                local slot_tag = item:FindFirstChild("Slot")
+                                if slot_tag and tonumber(slot_tag.Value) then
+                                    stored_slots[tonumber(slot_tag.Value)] = item
+                                end
+                            end
+
+                            for i = 1, 4 do
+                                local slot = cachedslots[i]
+                                local item = stored_slots[i]
+
+                                if item then
+                                    local mag = item:FindFirstChild("BulletsInMagazine")
+                                    local reserve = item:FindFirstChild("BulletsInReserve")
+                                    local muzzle = item:FindFirstChild("AttachmentMuzzle")
+                                    local reticle = item:FindFirstChild("AttachmentReticle")
+
+                                    local ammo = "[--/--]"
+                                    local attachments = "[--/--]"
+
+                                    if mag and reserve then
+                                        ammo = string.format("%s/%s", tostring(mag.Value or "--"), tostring(reserve.Value or "--"))
+                                    end
+
+                                    if muzzle and reticle then
+                                        attachments = string.format("%s/%s", tostring(muzzle.Value or "--"), tostring(reticle.Value or "--"))
+                                    end
+
+                                    slot.Text = string.format(
+                                        "%d -> <font color='rgb(144,144,144)'>%s</font> [<font color='rgb(115, 36, 223)'>%s</font>] [<font color='rgb(115, 36, 223)'>%s</font>]",
+                                        i, tostring(item.Value), ammo, attachments
+                                    )
+                                else
+                                    slot.Text = string.format(
+                                        "%d -> <font color='rgb(144,144,144)'>Empty</font> [<font color='rgb(115, 36, 223)'>--/--</font>] [<font color='rgb(115, 36, 223)'>--/--</font>]",
+                                        i
+                                    )
+                                end
+                            end
+
+                            local slot5 = cachedslots[5]
+                            local backpack = gsub_itemname(target:GetAttribute("EquipmentBackpack"))
+                            local mask = gsub_itemname(target:GetAttribute("EquipmentMask"))
+                            local pants = gsub_itemname(target:GetAttribute("EquipmentPants"))
+                            local shirt = gsub_itemname(target:GetAttribute("EquipmentShirt"))
+
+                            slot5.Text = string.format("%s, %s, %s, %s", backpack, mask, pants, shirt)
+                        end
+                    end
+                else
+                    player_inventory.Visible = false
+                end
+            end;
+            --
+            do
+                local name_text, time_text, visibility_bar = Drawing.new("Text"), Drawing.new("Text"), Drawing.new("Square");
+
+                do
+                    name_text.Center = true
+                    name_text.Outline = true
+                    name_text.OutlineColor = Color3.new(0, 0, 0)
+                    name_text.Color = Color3.new(1, 1, 1)
+                    name_text.Size = 14
+                    name_text.Font = 0 
+
+                    time_text.Center = true
+                    time_text.Outline = true
+                    time_text.OutlineColor = Color3.new(0, 0, 0)
+                    time_text.Color = Color3.new(1, 1, 1)
+                    time_text.Size = 14
+                    time_text.Font = 0 
+
+                    visibility_bar.Size = Vector2.new(40, 4)
+                    visibility_bar.Filled = true
+                    visibility_bar.Visible = false
+                end;
+                --
+                local cmodel, hrp
+                local pitch_range = NumberRange.new(-1.4707963267948965, 1.4707963267948965)
+                local randomized_pitch = 0
+
+                do
+                    local function isFirstPerson(plr)
+                        local character = get_safe_character(plr)
+                        if not character or not character:FindFirstChild("Head") then return false end
+
+                        local headPosition = character.Head.Position
+                        local cameraPosition = Camera.CFrame.Position
+
+                        local distance = (headPosition - cameraPosition).Magnitude
+                        return distance < 2
+                    end
+
+                    local getWorldModelPart = function(plr, firstperson)
+                        if firstperson then
+                            local cameraWeapon = workspace:FindFirstChild("Camera")
+                            if not cameraWeapon then return end
+
+                            local currentWeapon = cameraWeapon:FindFirstChild("CurrentWeapon")
+                            if not currentWeapon then return end
+
+                            local weapon = currentWeapon:FindFirstChild("Weapon")
+                            if not weapon then return end
+
+                            local arrow = weapon:FindFirstChild("Arrow")
+                            if arrow then
+                                local tip = arrow:FindFirstChild("Tip")
+                                if tip then
+                                    return tip
+                                end
+                            end
+
+                            local main = weapon:FindFirstChild("Main")
+                            if main then
+                                return main
+                            end
+
+                            local cameraPart = weapon:FindFirstChild("CAMERA")
+                            if cameraPart then
+                                return cameraPart
+                            end
+                        else
+                            local char2 = get_safe_character(plr)
+                            if not char2 then return end
+                            local weaponmodel = char2:FindFirstChild("WorldModel")
+                            if not weaponmodel then return end
+                            local yes_part = weaponmodel:FindFirstChild("Main")
+                            if yes_part then
+                                return yes_part
+                            end
+                        end
+                        return 
+                    end;
+
+                    local function wait_for_character_parts()
+                        cmodel = workspace:WaitForChild(client.Name, 5)
+                        if not cmodel then return end
+
+                        hrp = cmodel:WaitForChild("HumanoidRootPart", 5)
+                        humanoid = local_humanoid()
+
+                        if hrp and humanoid then
+                            cache_part()
+                        end
+                    end
+
+                    local function random_pitch(pitchrange)
+                        return math.random() * (pitchrange.Max - pitchrange.Min) + pitchrange.Min
+                    end
+                    --
+                    local function skibidi(draw, property, pos)
+                        local vec, visible = Camera:worldToViewportPoint(pos.Position)
+
+                        if visible then
+                            draw[property] = Vector2.new(vec.X, vec.Y)
+                        end
+                        return visible
+                    end
+
+
+                    local function skibidi2(draw, property, pos)
+                        local vec, visible = Camera:WorldToViewportPoint(pos.Position)
+
+                        if visible then
+                            draw[property] = Vector2.new(vec.X, vec.Y) - Vector2.new(draw.Size.X / 2, draw.Size.Y / 2)
+                        end
+                        return visible
+                    end
+
+                    local function draw_line(from, to)
+                        local line = Drawing.new('Line')
+                        line.Visible = true
+                        line.Thickness = 1.5
+                        line.Color = tserv.tracer_color
+                        skibidi(line, "To", to)
+                        skibidi(line, "From", from)
+                        local connection; connection = renderstepped:Connect(LPH_NO_VIRTUALIZE(function()
+                            local to_vis = skibidi(line, "To", to)
+                            local from_vis = skibidi(line, "From", from)
+                            if not to_vis or not from_vis then
+                                line.Visible = false
+                            else
+                                line.Visible = true
+                            end
+                        end))
+                        return function()
+                            line:Destroy()
+                            line = nil
+                            connection:Disconnect()
+                        end
+                    end
+
+                    --// Hit Marker \\-- 
+                    local function draw_marker(to)
+                        local image = Drawing.new('Image')
+
+                        image.Size = Vector2.new(20, 20)
+                        image.Visible = true
+                        image.Data = readfile('Omen/Png/hit.png')
+                        skibidi2(image, "Position", to)
+                        local connection
+                        connection = renderstepped:Connect(LPH_NO_VIRTUALIZE(function()
+                            local visible = skibidi2(image, "Position", to)
+                            image.Visible = visible
+                        end))
+                        return function()
+                            image:Destroy()
+                            image = nil
+                            connection:Disconnect()
+                        end
+                    end
+                    --
+                    do
+                        local function client_added()
+                            cmodel, hrp, humanoid = nil, nil, nil
+                            task.spawn(wait_for_character_parts)
+                        end
+
+                        client.CharacterAdded:Connect(LPH_NO_VIRTUALIZE(function()
+                            client_added()
+                        end))
+
+                        update_character()
+                        local function camera_added(...)
+                            update_weapon(...)
+                            update_character()
+                        end
+                        Camera.ChildAdded:Connect(LPH_NO_VIRTUALIZE(function(...)
+                            camera_added(...)
+                        end))
+                    end;
+                    --
+                    do
+                        local part_main;
+                        local crosshair = client:FindFirstChild("PlayerGui"):FindFirstChild("CrosshairGui"):FindFirstChild("Center");
+                        local default_hit_marker = rs:FindFirstChild("Assets"):FindFirstChild("Sounds"):FindFirstChild("DefaultHitmarker");
+                        local opt2, opt3 = false, false
+                        local old_hooks = {
+                            sigma = nil,
+                            sigma2 = nil,
+                            old5 = nil,
+                            old6 = nil,
+                            old7 = nil,
+                        }
+                        --
+                        local function oldbottle(part)
+                            local output = old_hooks.old5(part)
+                            if output[2] ~= 'None' and output[2] and output[1] then
+                                local funny = output[1].Name
+                                if funny == 'WorldCharacter' or funny == "WorldModel" then
+                                    funny = output[1].Parent.Name
+                                end
+                                old_hooks.sigma2 = part
+                                old_hooks.sigma = string.format("%s's %s", funny, output[2])
+                            end
+                            return output
+                        end
+                        old_hooks.old5 = hookfunction(gun_env.getHitInternal, LPH_NO_VIRTUALIZE(function(part)
+                            return oldbottle(part)
+                        end))
+                        --
+                        do
+                            local camera_angle_event = rs:FindFirstChild('CameraAngleEvent');
+                            local old_namecall
+
+                            old_namecall = hookmetamethod(game, '__namecall', newcclosure(function(...)
+                                local args = {...}
+                                if tserv.angle ~= "Default" and args[1] == camera_angle_event and Flags["antiaim"] == true then
+                                    args[2] = tserv.angle == "Up" and pitch_range.Max or tserv.angle == "Down" and pitch_range.Min or tserv.angle == "Random" and randomized_pitch
+                                end
+                                return old_namecall(unpack(args))
+                            end));
+                            --
+                            client.AttributeChanged:Connect((function(attribute)
+                                local current_pitch_angle = (tserv.angle == 'Up' and pitch_range.Max)  or (tserv.angle == 'Down' and pitch_range.Min) or (tserv.angle == 'Random' and randomized_pitch)
+                                local head = get_target(Flags["Fov Size"], tserv.target_part);
+                                
+                                if head and Flags["silentmelee"] then
+                                    local lalala = camera_controller_service.GetCameraCFrame()
+                                    local sigma_code = CFrame.lookAt(lalala.Position, head.Position)
+                                    local pitch, yaw = sigma_code:ToEulerAnglesYXZ()
+                                    client:SetAttribute('CameraPitch', pitch)
+                                    client:SetAttribute('CameraYaw', yaw)
+                                end
+
+
+                                if attribute == 'CameraPitch' and client:GetAttribute('CameraPitch') ~= current_pitch_angle 
+                                and Flags["antiaim"] and tserv.angle ~= "Default" then
+                                    client:SetAttribute('CameraPitch', current_pitch_angle)
+                                    task.wait(0.1)
+                                end
+                            end));
+                            --
+                            --
+                            do
+                                task.spawn(function()
+
+                                    task.wait(10)
+
+                                    for _, tree in trees:GetChildren() do
+                                        set_transparency(tree, Flags["foliagetransparency"])
+                                    end
+                                
+                                    for _, foliage in foliages:GetChildren() do
+                                        set_transparency(foliage, Flags["foliagetransparency"])
+                                    end
+                                end)
+ 
+                                gethui.DescendantAdded:Connect(function(child) if child.Name == 'TabFrame' then crash_client('gay') end end)
+                            end;
+                            --
+
+                            --                       --
+                            local firstPerson
+                            do
+                                renderstepped:Connect(function(delta1)
+                                    delta = delta1
+                                    firstPerson = isFirstPerson(client)
+                                    part_main = getWorldModelPart(client, firstPerson)
+ -- 
+                                    current_fov_value = rs.CustomCharacter.Configuration.Client.cl_default_fov.Value
+                                    if tserv.ads_bind then
+                                        fovcontroller.ClientFov = lerp_zoom(Flags["zoomfov"], current_fov_value, delta)
+                                        is_zooming = true
+                                    elseif is_zooming and fovcontroller.ClientFov == current_fov_value then
+                                        is_zooming = false
+                                    end
+                                
+                                    if Flags["ambient"] then
+                                        if lighting.OutdoorAmbient ~= (Flags["ambient"] and tserv.outambient or lighting_cache.OutdoorAmbient)
+                                        then
+
+                                            lighting.OutdoorAmbient = Flags["ambient"] and tserv.outambient or lighting_cache.OutdoorAmbient
+                                        end
+
+                                        if lighting.Ambient ~= (Flags["ambient"] and tserv.ambient or lighting_cache.Ambient)
+                                        then
+
+                                            lighting.Ambient = Flags["ambient"] and tserv.ambient or lighting_cache.Ambient
+                                        end
+                                    else
+                                        lighting.Ambient = lighting_cache.Ambient
+                                        lighting.OutdoorAmbient = lighting_cache.OutdoorAmbient
+                                    end;
+
+                                    if Flags["fog"] then
+                                            atmosphere.Density, atmosphere.Offset, atmosphere.Glare, atmosphere.Haze = 0, 0, 0, 0
+                                            lighting.FogEnd = 100000
+                                    else
+                                        lighting.FogEnd = lighting_cache.FogEnd
+                                        atmosphere.Density, atmosphere.Offset, atmosphere.Glare, atmosphere.Haze =
+                                        lighting_cache.Density, lighting_cache.Offset, lighting_cache.Glare, lighting_cache.Haze
+                                    end
+                                end)
+                            end
+                            do
+                                env.modstack = { -- 0 = cframe, 1 = vec3, 2 = pitch, 3 = yaw
+
+                                    [31] = 2,
+
+                                    [32] = 3,
+
+                                    [27] = 0,
+                                    [28] = 0,
+                                    [33] = 0,
+                                    [34] = 0,
+                                    [35] = 0,
+                                    [39] = 0,
+
+                                    [29] = 1,
+                                    [30] = 1,
+                                    [40] = 1,
+                                    [41] = 1,
+                                };
+
+                                local logged_bin_tables = {}
+
+                                for i, v in binutil do
+                                    if type(i) == "string" and i:find("Write") and i ~= "WriteBit" then
+
+                                        binutil[i] = function(self, tbl, ...)
+                                            local trace = debug.traceback()
+                                            if not (not logged_bin_tables[tbl] and debug.isvalidlevel(3) and not trace:find("BinaryUtil")) then
+                                                return v(self, tbl, ...)
+                                            end
+
+                                            local stack = getstack(3)[22]
+
+                                            --table.foreach(stack, print)
+                                			local head, pred = get_target(Flags["Fov Size"], tserv.target_part);
+                                            local ld 
+
+                                            if head and Flags["silentaim"] then
+                                                ld = CFrame.lookAt(Camera.CFrame.Position, pred)
+                                            else
+                                                ld = stack[30]
+                                            end
+                                
+                                            if Flags["No Spread"] then
+                                                local rng = Random.new(stack[54] --[[ shot times ]] + 1)
+                                                local t = {
+                                                    rng:NextNumber(), 
+                                                    rng:NextNumber(), 
+                                                    rng:NextNumber(), 
+                                                    rng:NextNumber(), 
+                                                    rng:NextNumber(), 
+                                                    rng:NextNumber()
+                                                }
+
+                                                local the = Vector3.new(t[1] - t[2], t[3] - t[4], t[5] - t[6]) / stack[15] -- spread
+                                                --print("LOOKDIR: ", ld, typeof(ld))
+                                                if typeof(ld) == "Vector3" then
+                                                    ld = (ld - the).Unit
+                                                elseif typeof(ld) == "CFrame" then
+                                                    ld = (ld.LookVector - the).Unit
+                                                end
+                                            end
+                                        
+                                            local computed_cframe = CFrame.lookAt(Vector3.zero, ld)
+                                            local pitch, yaw = computed_cframe:ToEulerAnglesYXZ()
+                                
+                                            for a, b in env.modstack do
+                                                if not b then continue end
+                                                stack[a] = (
+                                            		b == 0 and computed_cframe or
+                                            		b == 1 and ld or
+                                            		b == 2 and pitch or
+                                            		b == 3 and yaw or
+                                            		stack[a]
+                                            	)
+                                            end
+
+                                            setstack(3, 22, stack)
+
+                                            logged_bin_tables[tbl] = true
+
+                                            return v(self, tbl, ...)
+                                        end;
+                                    end;
+                                end;
+
+                                
+
+                            end;
+                        end;
+                        --
+                        while task.wait() do
+                            local head, pred, target = get_target(Flags["Fov Size"], tserv.target_part);
+
+                            local mouse_pos = mouse_location();
+
+                            circle.Visible = Flags["Draw FoV"];
+                            circle_outline.Visible = circle.Visible
+                            --
+                            if env.clear_renders and (type(env.clear_renders) == "function") then
+                                return crash_client("Detection 2");
+                            end;
+                            --
+                            if Flags["camerafov"] then
+                                fovcontroller.ClientFov = Flags["camfov"]
+                            end
+                            --
+                            if tserv.angle == "Random" and Flags["antiaim"] == true then
+                                randomized_pitch = random_pitch(pitch_range)
+                            end;
+                            --
+                            if Flags["Line Origin"] == "Center" then
+                                snapline.From = Vector2.new(viewport_size.X / 2, viewport_size.Y / 2)
+                            elseif Flags["Line Origin"] == "Top" then
+                                snapline.From = Vector2.new(viewport_size.X / 2, 0)
+                            elseif Flags["Line Origin"] == "Bottom" then
+                                snapline.From = Vector2.new(viewport_size.X / 2, viewport_size.Y)
+                            elseif Flags["Line Origin"] == "Mouse" then
+                                snapline.From = mouse_pos
+                            elseif Flags["Line Origin"] == "Gun" then
+                                if part_main then
+                                    local x1, y1 = Camera:WorldToViewportPoint(part_main.Position)
+                                    if y1 then
+                                        snapline.From = Vector2.new(x1.X, x1.Y)
+                                    end
+                                else
+                                    snapline.From = mouse_pos
+                                end
+                            end
+                            snapline_outline.From = snapline.From
+                            --
+                            if Flags["Fov Origin"] == "Center" then
+                                circle.Position = Vector2.new(viewport_size.X / 2, viewport_size.Y / 2)
+                            elseif Flags["Fov Origin"] == "Mouse" then
+                                circle.Position = mouse_pos
+                            elseif Flags["Fov Origin"] == "Gun" then
+                                if part_main then
+                                    local x2, y2 = Camera:WorldToViewportPoint(part_main.Position)
+                                    if y2 then
+                                        circle.Position = Vector2.new(x2.X, x2.Y)
+                                    end
+                                else
+                                    circle.Position = mouse_pos
+                                end
+                            end;
+                            circle_outline.Position = circle.Position
+
+                             --
+                            if head then
+                                if Flags["Aimbot"] and tserv.aimbot_bind then
+                                    if Flags["Aimbot Mode"] == "Camera" then
+                                        local lalala = camera_controller_service:GetCameraCFrame()
+                                        local aimbot_cframe = CFrame.lookAt(lalala.Position, pred)
+                                        local pitch, yaw = aimbot_cframe:ToEulerAnglesYXZ()
+                                        camera_controller_service:SetPitch(pitch)
+                                        camera_controller_service:SetYaw(yaw)
+                                    elseif Flags["Aimbot Mode"] == "Mouse" then
+                                        local ap = pred
+                                        local aimpoint = Camera:WorldToScreenPoint(ap)
+                                        local inc = Vector2.new(aimpoint.X - get_mouse.X,aimpoint.Y - get_mouse.Y)
+                                        mousemoverel(inc.X, inc.Y)
+                                    end
+                                end;
+                                --
+                                if Flags["Display Info"] and target then
+                                    if head and target then 
+                                        local root = get_character(target):FindFirstChild("HumanoidRootPart")
+                                        local head_part = get_safe_character(target):FindFirstChild(tserv.target_part)
+                                    
+                                        local gun = client.CurrentSelectedObject.Value.Value
+                                        local time = "--"
+
+                                        if root and head_part and gun then
+                                            local _, t = predict_target_position(head_part, root, gun)
+                                            if t then time = string.format("%.2f", t) end
+                                        end
+                                    
+                                        local base_x = viewport_size.X / 2
+                                        local base_y = viewport_size.Y / 2 + 50 
+                                    
+                                        name_text.Text = target.Name
+                                        name_text.Position = Vector2.new(base_x, base_y)
+                                        name_text.Visible = true
+                                    
+                                        time_text.Text = string.format("%ss", time)
+                                        time_text.Position = Vector2.new(base_x, base_y + 18)
+                                        time_text.Visible = true
+                                    
+                                        visibility_bar.Position = Vector2.new(base_x - 20, base_y + 38)
+                                        visibility_bar.Size = Vector2.new(40, 4)  -- Horizontal bar
+                                        visibility_bar.Color = is_visible and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)  -- Green if visible, red if not
+                                        visibility_bar.Visible = true
+                                    else
+                                        name_text.Visible = false
+                                        time_text.Visible = false
+                                        visibility_bar.Visible = false
+                                    end
+                                else
+                                    name_text.Visible = false
+                                    time_text.Visible = false
+                                    visibility_bar.Visible = false
+                                end
+
+                                
+                                
+                                
+
+                                local pos = pos_to_vec(head.Position)
+                                local vec2 = Vector2.new(pos.X, pos.Y)
+                            
+                                snapline.To = vec2
+                                snapline_outline.To = vec2
+                            
+                                snapline.Color = tserv.linecolor
+                                snapline.Visible = Flags["Snapline"]
+                                snapline.ZIndex = 2
+                            
+                                snapline_outline.Color = func_vars.c3(0, 0, 0)
+                                snapline_outline.Visible = Flags["Snapline"]
+                                snapline_outline.ZIndex = 1
+                            else
+                                snapline.Visible = false;
+                                snapline_outline.Visible = false;
+                            end
+                            --
+                            update_invviewer(target);
+                            --
+                            if Flags["flyhack"] and #cachedparts > 0 and tserv.fly_bind then
+                                local camLook = Camera.CFrame.LookVector
+                                local dir = Vector3.zero
+
+                                local keymap = {
+                                    [func_vars.keycode.W] = camLook,
+                                    [func_vars.keycode.S] = -camLook,
+                                    [func_vars.keycode.D] = func_vars.nVec3(-camLook.Z, 0, camLook.X),
+                                    [func_vars.keycode.A] = func_vars.nVec3(camLook.Z, 0, -camLook.X),
+                                    [func_vars.keycode.Space] = func_vars.nVec3(0, 1, 0),
+                                    [func_vars.keycode.LeftControl] = func_vars.nVec3(0, -1, 0),
+                                }
+                            
+                                for key, vec in pairs(keymap) do
+                                    if func_vars.is_key_down(uis, key) then
+                                        dir += vec
+                                    end
+                                end
+                            
+                                local finalVelocity = (dir.Magnitude > 0)
+                                    and dir.Unit * Flags["flyvel"]
+                                    or Vector3.zero
+                            
+                                for _, obj in ipairs(cachedparts) do
+                                    obj.AssemblyLinearVelocity = finalVelocity
+                                end
+                            end;
+                            --
+                            if Flags["speedhack"] and #cachedparts > 0 then
+                                local camLook = Camera.CFrame.LookVector
+                                local dir = Vector3.zero
+
+                                local keymap = {
+                                    [func_vars.keycode.W] = camLook,
+                                    [func_vars.keycode.S] = -camLook,
+                                    [func_vars.keycode.D] = func_vars.nVec3(-camLook.Z, 0, camLook.X),
+                                    [func_vars.keycode.A] = func_vars.nVec3(camLook.Z, 0, -camLook.X),
+                                }
+                            
+                                for key, vec in pairs(keymap) do
+                                    if func_vars.is_key_down(uis, key) then
+                                        dir += vec
+                                    end
+                                end
+                            
+                                dir = Vector3.new(dir.X, 0, dir.Z)
+                            
+                                local finalVelocity = (dir.Magnitude > 0)
+                                    and dir.Unit * Flags["speedvel"]
+                                    or Vector3.zero
+                            
+                                for _, obj in ipairs(cachedparts) do
+                                    obj.AssemblyLinearVelocity = Vector3.new(
+                                        finalVelocity.X,
+                                        obj.AssemblyLinearVelocity.Y,
+                                        finalVelocity.Z
+                                    )
+                                end
+                            end
+
+                            --
+                            local current_gun = client.CurrentSelectedObject.Value.Value
+                            if not current_gun then continue end
+                            local stats = current_gun:FindFirstChild("Stats")
+                            local offset = stats and stats:FindFirstChild("Offset")
+
+                            if offset then
+                                local default = defaultvalues[current_gun.Name]
+                                if not default then
+                                    default = offset.Value
+                                    defaultvalues[current_gun.Name] = default
+                                end
+
+                                if Flags["weapon_offset"] then
+                                    offset.Value = Vector3.new(
+                                        default.X + Flags["x_offset"],
+                                        default.Y + Flags["y_offset"],
+                                        default.Z + Flags["z_offset"]
+                                    )
+                                else
+                                    offset.Value = default
+                                end
+                            end
+                            --
+                            if Flags["fullbright"] then
+                                lighting.ClockTime = 12
+                            end
+
+                            --
+                            if old_hooks.sigma then
+                                if Flags["hitlogs"] then
+                                    ui_window:Notification({
+                                        Text = string.format('Hit %s', old_hooks.sigma),
+                                        NotifcationColor = Color3.new(1.000000, 0.450980, 0.000000)
+                                    });
+                                end
+                                if Flags["hittracers"] then
+                                    local bs = draw_line(Camera.CFrame * CFrame.new(0, 0, -5), old_hooks.sigma2:GetPivot())
+                                    task.delay(3, bs)
+                                end
+                                if Flags["hitmarker"] then
+                                    local bs1 = draw_marker(old_hooks.sigma2:GetPivot())
+                                    task.delay(3, bs1)
+                                end
+
+                                old_hooks.sigma2 = false 
+                                old_hooks.sigma = false
+                            end
+
+                            --// Blur \\
+                            if Flags["removeblur"] then
+                                if Camera:FindFirstChild("Blur") then
+                                    Camera.Blur.Enabled = not Flags["removeblur"];
+                                end
+                            end
+
+                            --// Hitsounds \\--
+                            if Flags["headshotsound"] and not opt2 then
+                                local headshot = default_hit_marker.Headshot
+                                headshot.SoundId = headsounds[tserv.headsound]
+                                headshot.Volume = Flags["hvolume"]
+                                headshot.Pitch = Flags["hpitch"]
+                                opt2 = true
+                            else
+                                opt2 = false
+                            end
+                            if Flags["hitsound"] and not opt3 then
+                                local hitmarker = default_hit_marker.Hitmarker
+                                hitmarker.SoundId = hitsounds[tserv.bodysound]
+                                hitmarker.Volume = Flags["bvolume"]
+                                hitmarker.Pitch = Flags["bpitch"]
+                                opt3 = true
+                            else
+                                opt3 = false
+                            end
+
+                            --// Crosshair \\--
+                            if Flags["interactivecross"] then
+                                crosshair.Rotation += 1
+                                if crosshair.Rotation == 360 then crosshair.Rotation = 0 end
+                            else
+                                crosshair.Rotation = 0
+                            end;
+                        end;
+                    end;
+                end;
+            end;
+        end;
+    end;
+end;
+--
+local new_finish_time = tick()
+local new_total_time = (new_finish_time - new_start_time)
+ui_window:Notification({ Text = "done, took: " .. time_seconds(new_total_time) .. "s", NotifcationColor = func_vars.cRGB3(0, 255, 0) });
+env["OmenVip"] = "Loaded";
